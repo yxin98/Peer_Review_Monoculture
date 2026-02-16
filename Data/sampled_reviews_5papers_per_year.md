@@ -1495,7 +1495,7 @@ Weak points:
 2. I am confused about why the authors' approach is better than MSS or SORB. It's not obvious that a distance-based clustering will perform significantly better than sampled landmarks (like farthest point sampling). I guess the reason is that clustering helps to avoid the landmarks near the wall (which often appears in the FP sampled methods). Those states are challenging as it has a higher possibility for the ant to collide with the wall. Can the author give some words about this? Moreover, the paper is not clear about the contributions of each component in the improvements. For example, no table or figure shows the benefits of the soft value iteration over the hard version. The author shall provide more ablation studies and explanations.
 3. Although the paper presents the overall idea well, there is still a lot of room for improvement in writing. For example, I suggest that the author replaces the hyphen with the comma in the abstract.
 
-~~~Based on the current presentation, the lack of ablation study, and the limited novelty, I think this paper is not good enough to be accepted. ~~~
+Based on the current presentation, the lack of ablation study, and the limited novelty, I think this paper is not good enough to be accepted. 
 
 Here are some questions:
 1. Can we build graphs by sampling goal states and cluster them based on the metric space defined by the Q networks? What's the performance of this approach? Will it be worse? Why?
@@ -4478,4 +4478,5 @@ This paper compares sequential test-time scaling (iterative self-refinement wher
 
 
 ---
+
 
