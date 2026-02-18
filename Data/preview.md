@@ -1,6 +1,6 @@
 ## Review Example (ICLR 2020)
 
-### review
+### [review]
 
 This paper investigates the important problem of spatial-temporal forecasting, and proposes a multi-scale spatial-temporal joint graph convolution that jointly model the heterogeneous spatial-temporal correlations. Empirical results on multiple real-world datasets shows promising results.
 
@@ -36,11 +36,11 @@ D2: Presentation. This paper seems to be written in a rush, and the presentation
 
 ## Review Example (ICLR 2021)
 
-### summary_of_the_paper
+### [summary_of_the_paper]
 
 This paper is primarily a theoretical contribution to the construction of assemblies of recurrent neural networks. We know that combinations of learned modular components can be powerful and far more tractable than learning bespoke models from scratch, particularly in applied domains (e.g. AlphaGo). Yet so far, we have no theoretical guarantees that these combinations will actually remain stable. This paper develops the theory behind provably-stable combinations of RNNs using weight constraints and feedback mechanisms. Then, using fixed RNNs generated according to these constraints (leaving the connections between them as antisymmetric learnable parameters), the authors show that their sparse combination network is able to achieve SOTA performance on sequential image classification benchmarks with far fewer learned parameters and the previous stability guarantee.
 
-### main_review
+### [main_review]
 
 Strengths:
 - <mark>I thought that the empirical results were rather convincing for what is primarily a theoretical contribution.</mark> <mark>The authors first thoroughly investigate various permutations of their modular sparse combination network framework (# RNNs vs size of each using absolute value weight constraints) and do another investigation of their alternative SVD weight constraint network (which doesn’t perform as well or train as quickly).</mark> Most importantly, they then show that they can best SOTA algorithms on some of the common (albeit easier) benchmarks in the field, even under (and perhaps because of) these constraints.
@@ -51,7 +51,7 @@ Weaknesses:
 - <mark>This paper is very dense and difficult to follow.</mark> <mark>It took me a few reads to really understand the value of network stability and how it’s achieved in this case.</mark> The appendix is a mandatory read as are some of the references. None of the use cases are particularly intuitive. <mark>I think I would have liked to see a graphical representation of the sparse combo network (rather than the weight matrices in Figure 2), some pseudocode for the algorithms (tossed in the Appendix), and maybe an example case of an unstable network assembly diverging.</mark> I also feel like my familiarity with AlphaGo and other methods gave me more of an insight into how this would help in practice than the actual paper did.
 - <mark>As much as I liked the empirical results that were provided, they’re all of a kind: sequential image prediction.</mark> <mark>I would have liked to see at least one application in a different domain (NLP, RL, continuous control, etc).</mark>
 
-### summary_of_the_review
+### [summary_of_the_review]
 
 Overall, I would accept this paper. Although it was difficult to follow and required a lot of consultation with the literature, I do ultimately think that this is a direction that DL algorithms are going in and that the theoretical and practical results from this work could be quite powerful. To make the paper better, I would like to see some results in a different domain and more effort towards improving the readability. Too often, valuable theoretical works go underutilized because they’re difficult to understand or don’t seem relevant to the empiricists and engineers who could build on them.
 
@@ -70,11 +70,11 @@ Overall, I would accept this paper. Although it was difficult to follow and requ
 
 ## Review Example (ICLR 2022)
 
-### summary_of_the_paper
+### [summary_of_the_paper]
 
 This paper proposes a test-time fine-tuning to boost the adversarial robustness of the classifier. Namely, the new method updates the parameter of the underlying deep network based on self-training (and potentially assuming the network is trained with a meta-learning algorithm). To evaluate the robustness, the paper places the model under a regular white-box adversary and a smarter one aware of the fine-tuning and shows that even with a smarter adversary the fine-tuned model is still more robust.
 
-### strength_and_weaknesses
+### [strength_and_weaknesses]
 
 **Strength**: The paper has a solid motivating theorem that shows why a test-time fine-tuning can improve the robustness. Even though the theorem does not directly help the design of the final algorithm, the theoretical contribution is still important. In the empirical part, the paper uses a standard set of adversaries, e.g. AutoAttack and the improvement of robustness is significant compared to its baselines. Overall, the structure of the paper is easy to follow and I know what to expect when I finish reading one section.
 
@@ -102,7 +102,7 @@ Two additional questions regarding the experiment:
 
 4. <mark>In Figure 1, it should be $\theta_AB$ not $\theta_BA$ from the caption (or I mis-understand the picture).</mark>
 
-### clarity,_quality,_novelty_and_reproducibility
+### [clarity,_quality,_novelty_and_reproducibility]
 
 **Clarity**: Overall the idea of the paper is clearly stated. The clarity can be further improved if (1) <mark>The notation becomes simpler and less dense;</mark> (2) Some definitions are pretty ad-hoc. For example, the definition of $L_{SS}$ is not presented until the experiment section that discusses what are the self-learning tasks; and (3) Taking several passes to fix the typo.
 
@@ -112,7 +112,7 @@ Two additional questions regarding the experiment:
 
 **Responsibility**: <mark>The reproducibility can be improved if the author provides a summary paragraph about where to find descriptions that produce the experiments.</mark>
 
-### summary_of_the_review
+### [summary_of_the_review]
 
 In summary, I am inclined to reject it at this moment because I am not sure if the proposed method actually produces a new network $\theta$ that is more robust with more obviously vulnerable parts exposed to the adversary. The writing of the paper can be improved as well.
 
@@ -135,15 +135,15 @@ In summary, I am inclined to reject it at this moment because I am not sure if t
 
 ## Review Example (ICLR 2023/2024/2025)
 
-### summary
+### [summary]
 
 The paper proposes Deep Schema Grounding (DSG), a method to break down a visual concept into smaller concepts with dependencies on other concepts. The authors show the capability of DSG in solving complex visual question answering task. A visual abstraction benchmark is proposed with 12 abstract concepts and 180 images.
 
-### strengths
+### [strengths]
 
 The paper provides a good solution for VLMs to better understand abstract concepts in an image. <mark>The presentation of the paper is clear with many figures for demonstration.</mark> <mark>The experiments are comprehensive, making the main message convincing.</mark> <mark>The benchmark created is novel and interesting.</mark>
 
-### weaknesses
+### [weaknesses]
 
 In terms of the idea behind DSG, it seems to be close to chain of thought with specific instructions. For example, the maze example in the paper can be integrated with just one prompt: "Imagine that the image represents a maze. <the question> Think step by step by recognizing the layout of the maze, the walls of the maze, then the entry and exit of the maze one by one." <mark>Maybe gpt-4o can automatically do this even without the instructions.</mark> <mark>This is probably why in Table 7 if the generation is free form, DSG does not outperform gpt-4o much despite using more API calls.</mark>
 
@@ -151,7 +151,7 @@ Therefore, I am a bit concerned whether these types of schemas are necessary. Af
 
 <mark>Another concern I have is about the diversity of the benchmark because the number of categories is quite limited.</mark>
 
-### questions
+### [questions]
 
 Could you try something like chain of thought prompting as I mentioned above?
 
