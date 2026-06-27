@@ -760,3 +760,650 @@ Qwen 覆盖：
 - 会把边缘信息也抽出来，所以数量膨胀。
 
 所以图里的判断可以更精确地写成：Qwen 是 high-recall / noisy extractor，适合做候选池；后面需要用更强模型或规则做去重、过滤和 label 校正。
+
+<!-- BEGIN GPT_MAIN_MINI_EXTENSION -->
+
+## GPT main / GPT mini 对照扩展
+
+数据源：`.homogeneous/closed_api_sample_eval_short/closed_api_sample_results.tsv`
+
+口径：这一节使用另一组 10 条 hard cases，对同一条 review 同时比较 `Qwen`、`gpt-5.5 main` 和 `gpt-5.4-mini` 的 aspect mining 结果。人工判断仍然是快速审计，不是正式双人标注；这里的“准”主要表示 aspect + stance + evidence 是否被 review 原文明确支持。
+
+### 总览
+
+| 模型 | 抽取总数 | 人工判准 | 粗略 precision | 风格判断 |
+|---|---:|---:|---:|---|
+| Qwen | 132 | 83 / 132 | 62.9% | 高 recall，但 over-label 和误标明显 |
+| GPT main (`gpt-5.5`) | 103 | 100 / 103 | 97.1% | 覆盖和准确率都最高，但成本高 |
+| GPT mini (`gpt-5.4-mini`) | 68 | 63 / 68 | 92.6% | 很保守，precision 高，但漏掉不少细粒度点 |
+
+### token / cost 统计
+
+| 模型 | 平均 input tokens / review | 平均 output tokens / review | 平均 total tokens / review | 平均成本 / review | 估计成本 / 3-review paper |
+|---|---:|---:|---:|---:|---:|
+| GPT main (`gpt-5.5`) | 2568.4 | 3434.2 | 6002.6 | $0.03755 | $0.11266 |
+| GPT mini (`gpt-5.4-mini`) | 2588.9 | 711.3 | 3300.2 | $0.00207 | $0.00621 |
+
+### 逐条概览
+
+| # | Year | Paper / Review | Qwen 判准 | GPT main 判准 | GPT mini 判准 | 明显问题 |
+|---:|---:|---|---:|---:|---:|---|
+| 1 | 2023 | `bNt7oajl2a` / `YE2hJRcjXS` | 5 / 17 | 7 / 7 | 6 / 6 | Qwen 明显 over-label；main 和 mini 都更干净，mini 少一个 Data/Dataset。 |
+| 2 | 2025 | `5o0ZvYzh6B` / `NYEuDCNjso` | 9 / 14 | 11 / 11 | 4 / 6 | main 覆盖最完整；mini 漏掉数据、效率、ablation 等；Qwen 有 Ethics/Societal/Reproducibility 误标。 |
+| 3 | 2023 | `fZZ4ubttru` / `UPEo4w5YPC` | 9 / 13 | 10 / 10 | 7 / 7 | main 覆盖完整；mini 高精度但漏掉 data/metrics/statistical；Qwen 有 Fit/Technical Correctness 牵强。 |
+| 4 | 2023 | `RUgBoMu0ad` / `T96Tt4iKI6` | 9 / 13 | 11 / 11 | 6 / 8 | main 最稳；mini 把一些正面 baseline/ablation evidence 标成 negative；Qwen 覆盖好但有 Figures/Efficiency 错位。 |
+| 5 | 2021 | `JHXjK94yH-y` / `u49Ua9bS1Hr` | 7 / 13 | 12 / 12 | 7 / 7 | main 覆盖完整；mini 主干准确但漏 statistical/figures/writing；Qwen 把 weak reject 当 Venue、把测试环境当 Technical。 |
+| 6 | 2025 | `Nyjvjgh6jW` / `RQ413lRyIJ` | 9 / 13 | 10 / 11 | 7 / 7 | main 和 mini 都准；main 覆盖更多；Qwen 有一条 Related Work 幻觉证据。 |
+| 7 | 2021 | `fGEoHDk0C` / `BrRMyeORxH3` | 7 / 13 | 9 / 9 | 6 / 6 | main 覆盖最完整；mini 精准但漏 efficiency/baseline/technical novelty；Qwen Venue/Related Work/Reproducibility 误标。 |
+| 8 | 2024 | `KfkmwYQXWh` / `fE19txHpeO` | 8 / 12 | 10 / 11 | 7 / 7 | main 捕捉 societal/figures/OOD 等细节；mini 干净但漏 technical novelty/societal；Qwen 把正面贡献错标为负面 Fit/Technical。 |
+| 9 | 2024 | `FK6T0U4Mg1` / `XhV3jyK4cq` | 11 / 12 | 8 / 9 | 7 / 7 | 三者都不错；main 的 Distribution Shift 略宽；mini 漏 positive motivation/technical correctness 等；Qwen 只有 Data/Dataset 明显错。 |
+| 10 | 2025 | `44Pc9erEIV` / `8ry7XWmVdr` | 9 / 12 | 12 / 12 | 6 / 7 | main 覆盖非常完整；mini 漏 technical novelty/statistical/problem setup；Qwen Ethics/Fit 有误。 |
+
+粗略结论：main 相比 mini 多抽出约 50% 的 aspect，而且大部分新增 aspect 是有效的；mini 的优势是便宜且干净，但容易漏掉 `Statistical Evidence`、`Hyperparameter / Seed Sensitivity`、`Problem Setup Validity`、`Data / Dataset Appropriateness` 等细粒度标签。
+
+## 具体样例：GPT main / GPT mini
+
+### 1. Inductive reasoning in LLMs
+
+Paper / Review：`bNt7oajl2a` / `YE2hJRcjXS`，Year：2023
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+The paper explores the inductive reasoning capabilities of large language models (LLMs) through iterative hypothesis refinement. The key ideas are:- Inductive reasoning involves proposing hypotheses to explain observations, selecting the best hypothesis, and refining it based on new examples. This process mirrorshuman inductive reasoning.- The authors test LLMs on this through:    1. Using the LLM to propose rule hypotheses based on examples    2. Testing the rules using symbolic interpreters or LLMs as rule appliers on new examples    3. Providing feedback to the LLM to further refine the rules- Experiments on 4 datasets show LLMs are phenomenal at proposing plausible hypotheses when combined with symbolic interpreters. Iterative refinement significantly improvesperformance.- However, LLMs display counter-intuitive inductive behaviors compared to humans:    - They struggle to apply their own proposed rules    - They are brittle to minor perturbations in examples    - Their induced rules differ in content and form from human-proposed rules- Well motivated, clear and flows well. I really enjoyed reading the paper.- The paper tackles an important problem in reasoning, reasoning inductively by proposing hypotheses.- The domains are well defined and the content is diverse.- The human experiments are insightful - comparing induced rules reveals qualitative gaps between LLMs and human reasoning.- The paper makes an important contribution in carefully evaluating both strengths and weaknesses of LLMs for inductive reasoning.- The analysis is thorough, spanning different models, datasets, and evaluations.- The limitations, scope and results are clearly defined and discussed.Overall, this is a clearly written, rigorous, and impactful study that advances our understanding of inductive reasoning in LLMs. The paradoxical findings are intriguing and point to promising future directions.- An analysis of the complexity of the rules used to generate the data would be interesting. Comparing the complexity of the hypothesis across tasks and domains might give some insight into the model performance.- Similarly, the complexity of the human induced and LLM induced rules might be interesting to analyze.- How were the number of examples seen by the model chosen across domains? What is the minimum number of examples needed to learn a rule?- An open source model would make the evaluations more comprehensive.- A separate evaluation for LLMs as symbolic interpreters of rules would help tease apart the rule-proposing / application componenets more. More on complexity: LMs might be bad appliers of complex rules.- Can LLMs apply rules induced by humans?- Is there a change in the types of rules induced if the prompt is changed to encourage communication (since this was what humans seemed to do)? Change prompt to emphasize communication?- MiniAC→MiniARC: 4.3 para1 line 3I have specified the questions/ suggestions in the weaknesses section.
+```
+
+</details>
+
+Review 主要点：
+- 动机和问题重要，写作清楚。
+- LLM 能提出假设，但规则应用、扰动鲁棒性和人类规则差异仍需分析。
+- 需要 complexity / component attribution / open-source model / prompt change 等补充实验。
+
+Qwen 覆盖（原标注）：
+
+- `Motivation / Problem Framing` (positive): The paper tackles an important problem in reasoning, reasoning inductively by proposing hypotheses.
+- `Originality / Novelty` (positive): The paper makes an important contribution in carefully evaluating both strengths and weaknesses of LLMs for inductive reasoning.
+- `Fit to Venue / Scope` (positive): Overall, this is a clearly written, rigorous, and impactful study that advances our understanding of inductive reasoning in LLMs.
+- `Problem Setup Validity` (positive): The domains are well defined and the content is diverse.
+- `Technical Correctness` (negative): An analysis of the complexity of the rules used to generate the data would be interesting.
+- `Experimental Setup & Protocol` (negative): How were the number of examples seen by the model chosen across domains? What is the minimum number of examples needed to learn a rule?
+- `Metrics & Evaluation Criteria` (positive): The analysis is thorough, spanning different models, datasets, and evaluations.
+- `Statistical Evidence` (positive): The limitations, scope and results are clearly defined and discussed.
+- `Ablation & Attribution` (negative): Comparing the complexity of the hypothesis across tasks and domains might give some insight into the model performance.
+- `Hyperparameter / Seed Sensitivity` (negative): What is the minimum number of examples needed to learn a rule?
+- `Interpretation of Results` (positive): The human experiments are insightful - comparing induced rules reveals qualitative gaps between LLMs and human reasoning.
+- `Reproducibility & Implementation` (negative): An open source model would make the evaluations more comprehensive.
+- `Writing Clarity & Organization` (positive): Well motivated, clear and flows well. I really enjoyed reading the paper.
+- `Figures / Tables & Visual Presentation` (positive): The paper is well motivated, clear and flows well.
+- `Related Work Positioning & Citations` (positive): The paper makes an important contribution in carefully evaluating both strengths and weaknesses of LLMs for inductive reasoning.
+- `Ethics / Safety / Misuse` (positive): The paradoxical findings are intriguing and point to promising future directions.
+- `Societal / Broader Impacts` (positive): The paradoxical findings are intriguing and point to promising future directions.
+
+GPT main 覆盖：
+
+- `Motivation / Problem Framing` (positive): Iterative refinement significantly improvesperformance.- However, LLMs display counter-intuitive inductive behaviors compared to humans:    - They struggle to apply their own proposed rules    - They are brittle to minor...
+- `Originality / Novelty` (positive): I really enjoyed reading the paper.- The paper tackles an important problem in reasoning, reasoning inductively by proposing hypotheses.- The domains are well defined and the content is diverse.- The human experiments ar...
+- `Data / Dataset Appropriateness` (positive): I really enjoyed reading the paper.- The paper tackles an important problem in reasoning, reasoning inductively by proposing hypotheses.- The domains are well defined and the content is diverse.- The human experiments ar...
+- `Writing Clarity & Organization` (positive): Iterative refinement significantly improvesperformance.- However, LLMs display counter-intuitive inductive behaviors compared to humans:    - They struggle to apply their own proposed rules    - They are brittle to minor...
+- `Experimental Setup & Protocol` (negative): Comparing the complexity of the hypothesis across tasks and domains might give some insight into the model performance.- Similarly, the complexity of the human induced and LLM induced rules might be interesting to analyz...
+- `Ablation & Attribution` (negative): What is the minimum number of examples needed to learn a rule?- An open source model would make the evaluations more comprehensive.- A separate evaluation for LLMs as symbolic interpreters of rules would help tease apart...
+- `Interpretation of Results` (negative): The paradoxical findings are intriguing and point to promising future directions.- An analysis of the complexity of the rules used to generate the data would be interesting.
+
+GPT mini 覆盖：
+
+- `Writing Clarity & Organization` (positive): Iterative refinement significantly improvesperformance.- However, LLMs display counter-intuitive inductive behaviors compared to humans:    - They struggle to apply their own proposed rules    - They are brittle to minor...
+- `Motivation / Problem Framing` (positive): I really enjoyed reading the paper.- The paper tackles an important problem in reasoning, reasoning inductively by proposing hypotheses.- The domains are well defined and the content is diverse.- The human experiments ar...
+- `Problem Setup Validity` (positive): I really enjoyed reading the paper.- The paper tackles an important problem in reasoning, reasoning inductively by proposing hypotheses.- The domains are well defined and the content is diverse.- The human experiments ar...
+- `Originality / Novelty` (positive): The paradoxical findings are intriguing and point to promising future directions.- An analysis of the complexity of the rules used to generate the data would be interesting.
+- `Experimental Setup & Protocol` (negative): Comparing the complexity of the hypothesis across tasks and domains might give some insight into the model performance.- Similarly, the complexity of the human induced and LLM induced rules might be interesting to analyz...
+- `Interpretation of Results` (positive): I really enjoyed reading the paper.- The paper tackles an important problem in reasoning, reasoning inductively by proposing hypotheses.- The domains are well defined and the content is diverse.- The human experiments ar...
+
+判断：Qwen `5 / 17`，GPT main `7 / 7`，GPT mini `6 / 6`。Qwen 明显 over-label；main 和 mini 都更干净，mini 少一个 Data/Dataset。
+
+### 2. Expressive speech-to-speech translation
+
+Paper / Review：`5o0ZvYzh6B` / `NYEuDCNjso`，Year：2025
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+The paper introduces UniSS, a single-stage autoregressive framework for expressive speech-to-speech translation (S2ST) that preserves speaker voice, emotion, and duration while achieving high translation fidelity. Built on the pre-trained Qwen2.5-1.5B-Instruct LLM, it uses a triple-tokenizer strategy (speaker, linguistic, semantic tokens) and cross-modal CoT prompting to transfer text translation capabilities to speech. Two modes (Quality and Performance) balance fidelity and efficiency. The authors release UniST, a 44.8k-hour Chinese-English expressive S2ST dataset. Experiments on CVSS-T and FLEURS show superior performance over baselines like SeamlessM4T, GPT-4o, and cascaded systems in metrics such as Speech-BLEU, prosody consistency, duration compliance, and speech quality. Subjective MOS evaluations confirm high emotion/speaker similarity and naturalness.1. The paper addresses an important problem in speech-to-speech translation: preserving the speaker's voice, emotional style, and prosody across languages. This is crucial for applications like multilingual communication or media dubbing. The motivation is clear, and the cross-modal CoT approach effectively aligns text-based LLM capabilities with speech in a single model. This method is innovative and necessary, as ablations show that removing CoT leads to major drops in performance.2. The authors release UniST, a 44.8k-hour dataset for expressive S2ST, which tackles the key issue of limited paired data with style preservation. The creation pipeline is well-documented, making it valuable for the research community.3. The experiments cover a broad set of metrics, including semantic and acoustic part. Baselines are varied, spanning cascaded systems and end-to-end models, ensuring robust comparisons.4. UniSS outperforms baselines on most metrics, such as emotion similarity and duration matching. The demopage also illustrates the model's success in maintaining expressive qualities.5. The paper is well-structured and readable, with clear descriptions of the architecture, training strategy, and ablations that validate the approach.1. The novelty is limited. The model's strength in maintaining speaker voice, emotion, and prosody largely relies on pre-existing components, such as the BiCodec tokenizer for speaker representations and SparkTTS for synthesizing expressive data. UniSS itself mainly integrates these by organizing a multiple token sequence then inputing it into a LLM, reducing its core innovation and novelty.2. The Single-Stage claim is misleading.  While positioned as a streamlined single-stage model to avoid cascaded errors and latency, the Quality mode generates intermediate source text (T_src) and target text (T_tgt) before speech tokens, mirroring the sequential steps of a traditional 3-stage pipeline (ASR → MT → TTS). This undermines the claimed advantages and could lead to similar error accumulations and delays.3. Training and evaluations are centered on English-Chinese pairs. Besides, the use of GLM tokenizer and SparkTTS also constrains the method for applying on other languages. This raises questions about scalability to diverse languages, accents, or noisy real-world scenarios, where data scarcity for expressiveness could amplify issues.4. A significant issue is the unfair setting in evaluations, particularly for translation accuracy (BLEU). The UniST training data uses high-quality translations from the large Qwen2.5-72B model, while the 3-stage cascaded baseline relies on the much smaller pretrained NLLB-600M for machine translation. Why not use Qwen-2.5-1.5B-Instruct LLM in the cascaded system?5. The framework's heavy reliance on text-based elements. For example, CoT prompting with intermediate transcripts makes it unsuitable for unwritten or low-resource languages without scripts. This contradicts goals in textless S2ST research and should be highlighted as a key limitation, especially given the focus on expressive translation.1. To make a fair comparison, it will be better if you test another cascaded baseline that uses the same Qwen-2.5-1.5B-Instruct model for MT and the same SparkTTS model for TTS. Besides, consider training the baselines on the UniST dataset. This would show if the UniSS framework is truly better, or if it just benefited from better components and training data.2. How does the cross-modal CoT prompting specifically bridge text and speech modalities? Provide some studies of intermediate outputs (e.g., T_src, T_tgt) to explain whether UniSS addresses error propagation problems.3. The motivation emphasizes unifying expressiveness, but much relies on existing tools (BiCodec, SparkTTS). What novel insights does UniSS offer for LLM-based S2ST, and how does it differ from prior CoT adaptations in multimodal tasks?4. For training strategy, what is the individual contribution of each task to overall performance? Could you add ablations removing or weighting specific tasks to quantify their effects?5. Since UniST is fully a synthetic dataset generated by SparkTTS, is it unable to effectively capture word-level semantic prosody mapping or relevance in speech translation? For instance, the transfer of semantic nuances such as emphasized stress. It is recommended to provide corresponding analysis and discuss the potential limitations.
+```
+
+</details>
+
+Review 主要点：
+- S2ST preserving voice/emotion/prosody 问题重要，UniST 数据集有价值。
+- novelty 受限，single-stage claim 有争议。
+- 中英数据、合成数据、fair baseline、scalability/OOD 和 ablation 需要加强。
+
+Qwen 覆盖（原标注）：
+
+- `Motivation / Problem Framing` (positive): The paper addresses an important problem in speech-to-speech translation: preserving the speaker's voice, emotional style, and prosody across languages.
+- `Originality / Novelty` (negative): The novelty is limited. The model's strength in maintaining speaker voice, emotion, and prosody largely relies on pre-existing components...
+- `Fit to Venue / Scope` (negative): The 'Single-Stage' claim is misleading. While positioned as a streamlined single-stage model... mirroring the sequential steps of a traditional 3-stage pipeline
+- `Technical Correctness` (negative): The 'Single-Stage' claim is misleading. While positioned as a streamlined single-stage model... mirroring the sequential steps of a traditional 3-stage pipeline
+- `Data / Dataset Appropriateness` (negative): Training and evaluations are centered on English-Chinese pairs. Besides, the use of GLM tokenizer and SparkTTS also constrains the method for applying on other languages
+- `Baselines & Fair Comparison` (negative): A significant issue is the unfair setting in evaluations, particularly for translation accuracy (BLEU). The UniST training data uses high-quality translations from the large Qwen2.5-72B model...
+- `Ethics / Safety / Misuse` (negative): The framework's heavy reliance on text-based elements... contradicts goals in textless S2ST research and should be highlighted as a key limitation
+- `Societal / Broader Impacts` (negative): The framework's heavy reliance on text-based elements... contradicts goals in textless S2ST research and should be highlighted as a key limitation
+- `Technical Novelty` (positive): The cross-modal CoT approach effectively aligns text-based LLM capabilities with speech in a single model. This method is innovative and necessary
+- `Writing Clarity & Organization` (positive): The paper is well-structured and readable, with clear descriptions of the architecture, training strategy, and ablations that validate the approach
+- `Distribution Shift & Generalization (OOD)` (negative): This raises questions about scalability to diverse languages, accents, or noisy real-world scenarios, where data scarcity for expressiveness could amplify issues
+- `Reproducibility & Implementation` (negative): The creation pipeline is well-documented, making it valuable for the research community
+- `Efficiency & Scalability` (negative): The 'Single-Stage' claim is misleading. While positioned as a streamlined single-stage model to avoid cascaded errors and latency... could lead to similar error accumulations and delays
+- `Figures / Tables & Visual Presentation` (positive): The demopage also illustrates the model's success in maintaining expressive qualities
+
+GPT main 覆盖：
+
+- `Motivation / Problem Framing` (positive): The paper addresses an important problem in speech-to-speech translation: preserving the speaker's voice, emotional style, and prosody across languages.
+- `Originality / Novelty` (negative): The novelty is limited.
+- `Metrics & Evaluation Criteria` (positive): The experiments cover a broad set of metrics, including semantic and acoustic part.
+- `Baselines & Fair Comparison` (negative): A significant issue is the unfair setting in evaluations, particularly for translation accuracy (BLEU).
+- `Interpretation of Results` (positive): UniSS outperforms baselines on most metrics, such as emotion similarity and duration matching.
+- `Writing Clarity & Organization` (positive): The paper is well-structured and readable, with clear descriptions of the architecture, training strategy, and ablations that validate the approach.1.
+- `Problem Setup Validity` (negative): The Single-Stage claim is misleading.
+- `Distribution Shift & Generalization (OOD)` (negative): Training and evaluations are centered on English-Chinese pairs.
+- `Efficiency & Scalability` (negative): While positioned as a streamlined single-stage model to avoid cascaded errors and latency, the Quality mode generates intermediate source text (T_src) and target text (T_tgt) before speech tokens, mirroring the sequentia...
+- `Ablation & Attribution` (negative): For training strategy, what is the individual contribution of each task to overall performance?
+- `Data / Dataset Appropriateness` (negative): Since UniST is fully a synthetic dataset generated by SparkTTS, is it unable to effectively capture word-level semantic prosody mapping or relevance in speech translation?
+
+GPT mini 覆盖：
+
+- `Motivation / Problem Framing` (positive): The paper addresses an important problem in speech-to-speech translation: preserving the speaker's voice, emotional style, and prosody across languages.
+- `Originality / Novelty` (negative): The novelty is limited.
+- `Experimental Setup & Protocol` (negative): The experiments cover a broad set of metrics, including semantic and acoustic part.
+- `Baselines & Fair Comparison` (negative): The experiments cover a broad set of metrics, including semantic and acoustic part.
+- `Distribution Shift & Generalization (OOD)` (negative): This raises questions about scalability to diverse languages, accents, or noisy real-world scenarios, where data scarcity for expressiveness could amplify issues.4.
+- `Writing Clarity & Organization` (positive): The paper is well-structured and readable, with clear descriptions of the architecture, training strategy, and ablations that validate the approach.1.
+
+判断：Qwen `9 / 14`，GPT main `11 / 11`，GPT mini `4 / 6`。main 覆盖最完整；mini 漏掉数据、效率、ablation 等；Qwen 有 Ethics/Societal/Reproducibility 误标。
+
+### 3. GenBot robotic skill generation
+
+Paper / Review：`fZZ4ubttru` / `UPEo4w5YPC`，Year：2023
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+The paper introduces GenBot, a generative robotic agent designed to automatically learn a variety of robotic skills on a large scale via generative simulation.GenBot utilizes advancements in foundational and generative models. Instead of directly employing or adapting these models to formulate policies or specific actions, the authors suggest a generative approach. This approach employs the models to automatically generate diversified tasks, scenes, and training supervision. The goal is to enhance robotic skill learning with minimal human intervention.GenBot follows a propose-generate-learn cycle. Initially, the agent suggests intriguing tasks and skills. Following that, it generates simulation environments, populating them with relevant objects and assets in the appropriate spatial configurations. After obtaining all the required information for the proposed task, including scene components, GenBot proceeds with the actual skill learning.The contributions of this paper go as follows.- The paper introduces GenBot, a robotic agent that automates the process of task and environment generation and subsequently learns skills. This framework potentially reduces the need for human intervention in the process of creating simulation tasks.- A figure in the paper showcases 25 example tasks generated by GenBot and the corresponding skills it learned, highlighting the diversity and applicability of the system.Overall, this paper demonstrates that the entire pipeline—from creating tasks to learning skills—can potentially be automated by large models. While a lot of details are still missing, I commend the quality of this work, especially considering the engineering efforts involved.Specifically, the strengths of this paper include:- The paper introduces GenBot as an automated pipeline that can be endlessly queried to generate a continuous stream of skills for diverse tasks. This automation is a significant strength as it reduces human intervention and can potentially scale up robotic skill learning.- Task diversity is essential for generalizable robotic skill learning. If GenBot can produce a diverse set of tasks and learn corresponding skills, it signifies a robust and versatile system.## Major### **Task diversity**I am concerned regarding the diversity of the generated tasks. With tasks proposed by LLMs and only qualitative examples provided, it's challenging for readers to gauge the true diversity of these tasks. Specifically:- How many semantically distinct tasks are generated? By semantically distinct, I refer to tasks that are fundamentally different. For instance, opening a cabinet and lifting a bucket are semantically distinct, whereas walking forward and walking backward are not.- What is the range of diversity in scene configurations? Upon reviewing the prompts, it seems that certain elements, like a table, have fixed poses and heights. If this is a recurring theme, then scene configuration diversity appears limited.### **Task verification**The construction of tasks in simulation typically requires validation to ensure correct implementation. This involves examining success conditions, initial state distributions, physical parameters, and more. However, the paper lacks a systematic method for this crucial verification, especially given the automation of task creation. Mistakes at any stage could result in flawed tasks. Specifically:- What percentage of the tasks can be successfully solved? How does this compare to the total number of generated tasks?- Are trivial tasks, such as picking up a block when given the grasp action primitive, filtered out?### **Use of LLMs**While the paper demonstrates the potential for automating the entire pipeline, from task creation to skill learning, using large models, the necessity of LLMs is questionable. Could simple heuristics or random placements of objects yield similar results? Given the extensive prompting involved with GenBot, it's unclear if it genuinely produces more diverse tasks with reduced human efforts.### **Missing details**Numerous details are absent from the paper. Refer to the Questions section for more questions.### **Limited quantitative results**The majority of the results are qualitative, which lacks depth for readers. Additionally, the paper's comparison of task diversity to other benchmarks based solely on task descriptions is less than persuasive.## Minor- Object Assets: Currently, the paper relies heavily on PartNetMobility and RLBench for task-relevant objects, which may restrict task diversity. Although the paper suggests using Midjourney + Zero123 for additional 3D assets, this pipeline lacks detailed elaboration.- Lack of Open-Source Code: As of now, the paper hasn't released its code. Furthermore, the underlying simulation framework, Genesis, remains private.- Regarding Task Proposal:- How does the system handle incompatibilities between the robot and the object? For instance, if the robot is a dog and the object is a cabinet, what would the proposed task be?- In scenarios involving non-articulated objects, if the generated tasks aren't specifically tied to the sampled object, how does the sampled object influence the task?- Regarding Scene Generation:- Could you provide a more detailed explanation of the MidJourney + Zero123 pipeline?- What is the precise output format from the LLMs? How is this output imported into a simulator to construct a scene?- How does the system manage situations where the scene results in an unsolvable task? For example, if the task is to open a cabinet but the cabinet is positioned out of the robot arm's reach.- How are potential collisions in the initial scene configuration addressed?- Is the initial state of the scene fixed, or is it sampled from a distribution?- How does the system generate physical parameters other than size, such as friction?- Regarding Training Supervision Generation:- How reliable is the reward generated by the LLM? Are there instances where it may not align with the intended goal?- How does the system define the success conditions for a task?
+```
+
+</details>
+
+Review 主要点：
+- GenBot 自动生成任务/场景/监督并学习技能，有新意。
+- 任务多样性和成功率缺少量化验证。
+- LLM 必要性、baseline、PartNet/RLBench 依赖、代码/Genesis 私有等是主要问题。
+
+Qwen 覆盖（原标注）：
+
+- `Originality / Novelty` (positive): The paper introduces GenBot as an automated pipeline that can be endlessly queried to generate a continuous stream of skills for diverse tasks.
+- `Technical Novelty` (positive): The paper introduces GenBot, a robotic agent that automates the process of task and environment generation and subsequently learns skills.
+- `Fit to Venue / Scope` (negative): While a lot of details are still missing, I commend the quality of this work, especially considering the engineering efforts involved.
+- `Problem Setup Validity` (negative): I am concerned regarding the diversity of the generated tasks. With tasks proposed by LLMs and only qualitative examples provided, it's challenging for readers to gauge the true diversity of
+- `Distribution Shift & Generalization (OOD)` (negative): Task diversity is essential for generalizable robotic skill learning. If GenBot can produce a diverse set of tasks and learn corresponding skills, it signifies a robust and versatile system.
+- `Technical Correctness` (negative): The necessity of LLMs is questionable. Could simple heuristics or random placements of objects yield similar results?
+- `Reproducibility & Implementation` (negative): The paper hasn't released its code. Furthermore, the underlying simulation framework, "Genesis," remains private.
+- `Experimental Setup & Protocol` (negative): What percentage of the tasks can be successfully solved? How does this compare to the total number of generated tasks?
+- `Baselines & Fair Comparison` (negative): The paper's comparison of task diversity to other benchmarks based solely on task descriptions is less than persuasive.
+- `Data / Dataset Appropriateness` (negative): Currently, the paper relies heavily on PartNetMobility and RLBench for task-relevant objects, which may restrict task diversity.
+- `Metrics & Evaluation Criteria` (negative): The majority of the results are qualitative, which lacks depth for readers.
+- `Statistical Evidence` (negative): The paper's comparison of task diversity to other benchmarks based solely on task descriptions is less than persuasive.
+- `Ablation & Attribution` (negative): What percentage of the tasks can be successfully solved? How does this compare to the total number of generated tasks?
+
+GPT main 覆盖：
+
+- `Originality / Novelty` (positive): While a lot of details are still missing, I commend the quality of this work, especially considering the engineering efforts involved.Specifically, the strengths of this paper include:- The paper introduces GenBot as an...
+- `Efficiency & Scalability` (positive): While a lot of details are still missing, I commend the quality of this work, especially considering the engineering efforts involved.Specifically, the strengths of this paper include:- The paper introduces GenBot as an...
+- `Figures / Tables & Visual Presentation` (positive): This framework potentially reduces the need for human intervention in the process of creating simulation tasks.- A figure in the paper showcases 25 example tasks generated by GenBot and the corresponding skills it learne...
+- `Experimental Setup & Protocol` (negative): With tasks proposed by LLMs and only qualitative examples provided, it's challenging for readers to gauge the true diversity of these tasks.
+- `Problem Setup Validity` (negative): However, the paper lacks a systematic method for this crucial verification, especially given the automation of task creation.
+- `Ablation & Attribution` (negative): How does this compare to the total number of generated tasks?- Are trivial tasks, such as picking up a block when given the grasp action primitive, filtered out?### **Use of LLMs**While the paper demonstrates the potenti...
+- `Metrics & Evaluation Criteria` (negative): Refer to the Questions section for more questions.### **Limited quantitative results**The majority of the results are qualitative, which lacks depth for readers.
+- `Baselines & Fair Comparison` (negative): Could simple heuristics or random placements of objects yield similar results?
+- `Data / Dataset Appropriateness` (negative): Additionally, the paper's comparison of task diversity to other benchmarks based solely on task descriptions is less than persuasive.## Minor- Object Assets: Currently, the paper relies heavily on PartNetMobility and RLB...
+- `Reproducibility & Implementation` (negative): Given the extensive prompting involved with GenBot, it's unclear if it genuinely produces more diverse tasks with reduced human efforts.### **Missing details**Numerous details are absent from the paper.
+
+GPT mini 覆盖：
+
+- `Originality / Novelty` (positive): The paper introduces GenBot, a generative robotic agent designed to automatically learn a variety of robotic skills on a large scale via generative simulation.GenBot utilizes advancements in foundational and generative m...
+- `Figures / Tables & Visual Presentation` (positive): This framework potentially reduces the need for human intervention in the process of creating simulation tasks.- A figure in the paper showcases 25 example tasks generated by GenBot and the corresponding skills it learne...
+- `Motivation / Problem Framing` (positive): The goal is to enhance robotic skill learning with minimal human intervention.GenBot follows a propose-generate-learn cycle.
+- `Experimental Setup & Protocol` (negative): Refer to the Questions section for more questions.### **Limited quantitative results**The majority of the results are qualitative, which lacks depth for readers.
+- `Reproducibility & Implementation` (negative): While a lot of details are still missing, I commend the quality of this work, especially considering the engineering efforts involved.Specifically, the strengths of this paper include:- The paper introduces GenBot as an...
+- `Interpretation of Results` (negative): Refer to the Questions section for more questions.### **Limited quantitative results**The majority of the results are qualitative, which lacks depth for readers.
+- `Baselines & Fair Comparison` (negative): Could simple heuristics or random placements of objects yield similar results?
+
+判断：Qwen `9 / 13`，GPT main `10 / 10`，GPT mini `7 / 7`。main 覆盖完整；mini 高精度但漏掉 data/metrics/statistical；Qwen 有 Fit/Technical Correctness 牵强。
+
+### 4. Hierarchical image classification
+
+Paper / Review：`RUgBoMu0ad` / `T96Tt4iKI6`，Year：2023
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+This paper proposes two techniques for improving hierarchical image classification: a training method and an inference method. The training approach provides better utilization of pre-trained models by adopting an image-text model (CLIP) and applying a contrastive loss based on the (fixed) label embeddings from the text encoder. The hierarchical contrastive loss comprises an independent sum over per-level contrastive losses. The inference procedure applies diffusion to iteratively propagate scores in the (undirected) graph defined by the taxonomy. Using the iNaturalist datasets (2018, 2021-mini), the training method is shown to obtain greatly improved results over simply fine-tuning the CLIP image encoder using existing losses. The inference algorithm is also demonstrated to further improve the results. The authors also propose a differentiable diffusion approach, which replaces the adjacency matrix with a learned matrix.1. The baseline methods were evaluated using the same pre-trained initialization (CLIP image encoder) and a large improvement is achieved (+8 points Average Precision).1. The ablative study in Table 3 shows the improvement in accuracy obtained by using the text embedding and the contrastive loss.1. The inference procedure was compared to other approaches using the same model in Table 5, and with different models in Table 6.1. Good use of hierarchical metrics.1. The methods are demonstrated on both balanced and imbalanced datasets.1. Overall, the ablative studies were well-constructed, and answered most of my queries about the method.I will use [1] to denote Valmadre (2022).1. What is hierarchical training with CE loss in the ablative study? (L294; also CE loss + Lxxxx distinct from Contrastive Loss + Lxxxx in Table 3) This needs to be explicitly defined.1. The proposed level-wise loss does not seem to produce consistent probabilities as defined in [1]; i.e. where the probability of an internal node is greater than or equal to the sum of its children.1. The level-wise loss might not apply as well in hierarchies that contain leaf nodes of different depths (I believe the iNaturalist taxonomy has a uniform depth of 7).1. The results in Table 4 lack sufficient significance to conclude that for metrics like AP, AC, and Leaf F1, comprehensive training across all levels (denoted as L123467) outperforms other configurations and consequently that these findings diverge from theprevailing belief that top-1 accuracy benchmarks align with hierarchical metric rankings. Most of these numbers seem about the same, with the possible exception of Leaf F1. (However, I agree that L67 and L7 are significantly better for R@xxC and Leaf Top1.)1. While the ablative study shows some important results, I would have liked to see further investigation into the importance of the image encoder. In particular, while the authors used CLIP pretraining for the baselines, the numbers are quite close to those of [1], which used standard ImageNet pretraining. I think it would be useful to highlight this in the paper (it shows that the method better leverages the pretrained model). Furthermore, since the label embeddings seem crucially important, it would be interesting to investigate whether the CLIP image encoder is even necessary by using ImageNet pretraining with the same label embeddings.1. It would be useful to generate the operating curves as in [1], to highlight whether the method achieves a better trade-off or simply dominates the other methods.1. No confidence intervals (error-bars).1. The diffusion procedure was not evaluated on models that were trained using the parameter sharing softmax and soft-max-margin losses in Table 6.1. It's inaccurate to characterize the *inference* procedure of [1] as bottom-up (e.g. Table 5): it returns the most-informative ($\approx$ deepest) label that exceeds a confidence threshold. In fact, if the threshold is > 0.5 and the probabilities satisfy the tree constraint, then it is equivalent to greedy top-down (since there can only be one path with confidence > 0.5). A better example of bottom-up inference would be Davis et al. Hierarchical Semantic Labeling with Adaptive Confidence, where the inference algorithm starts at the argmax leaf node and proceeds upwards.1. Several details are unclear, see questions.Minor:1. It seems as though the Softmargin and Descendant softmax rows might be interchanged between Table 1 and Table 2? The results of [1] showed the softmargin to perform consistently better than descendant softmax, as in Table 2 but not in Table 1.1. In (1), it seems that one of the summations should be over all leaf nodes, rather than $L(y)$.1. The parameter-sharing softmax of Salakhutdinov et al. (2011), also considered in [1], is effectively a hybrid method: logits are obtained in a top-down fashion, normalization is performed at the leaf nodes, and then probabilities are obtained bottom-up.Suggestions:1. I would use terminology like graph diffusion at the start of the paper to make it clear that you're not considering generative diffusion (DDPMs, stable diffusion, etc.).1. down-top should be bottom-up, unless you mean something specific by this?1. Are the summations over $i$ and $j$ in (2) over all labels in level $l$ (in which case, it should be $N_l$ rather than $N$?), or all labels at all levels (in which case, are the ancestor labels excluded?)?1. How would the loss in (2) be extended to taxonomies where not all leaf nodes occur at the same depth?1. Is the diffusion process applied to raw image-text similarities, or are the probabilities normalized; if so, are they normalized globally or per-level (as appears to be the case in the loss)?1. Which model was used to produce Table 5?1. What explains the difference between the results for Flat softmax in Table 2 (61.18 AP) and Table 6 (69.18 AP)?
+```
+
+</details>
+
+Review 主要点：
+- 同初始化 baseline、hierarchical metrics、balanced/imbalanced datasets 和 ablation 有正面评价。
+- level-wise loss consistency、Table 4 significance、confidence intervals、diffusion evaluation 缺口是关键问题。
+- 术语、定义和相关工作表述有若干清晰度/正确性问题。
+
+Qwen 覆盖（原标注）：
+
+- `Experimental Setup & Protocol` (positive): The ablative studies were well-constructed, and answered most of my queries about the method.
+- `Technical Correctness` (negative): The proposed level-wise loss does not seem to produce consistent probabilities as defined in [1]; i.e. where the probability of an internal node is greater than or equal to the
+- `Statistical Evidence` (negative): The results in Table 4 lack sufficient significance to conclude that "for metrics like AP, AC, and Leaf F1, comprehensive training across all levels (denoted as L123467) outperforms other configurations"...
+- `Reproducibility & Implementation` (negative): The diffusion procedure was not evaluated on models that were trained using the "parameter sharing softmax" and "soft-max-margin" losses in Table 6.
+- `Related Work Positioning & Citations` (negative): It's inaccurate to characterize the *inference* procedure of [1] as "bottom-up"...
+- `Writing Clarity & Organization` (negative): Several details are unclear, see questions.
+- `Figures / Tables & Visual Presentation` (positive): Good use of hierarchical metrics.
+- `Baselines & Fair Comparison` (positive): The baseline methods were evaluated using the same pre-trained initialization (CLIP image encoder) and a large improvement is achieved (+8 points Average Precision).
+- `Data / Dataset Appropriateness` (positive): The methods are demonstrated on both balanced and imbalanced datasets.
+- `Efficiency & Scalability` (negative): The diffusion procedure was not evaluated on models that were trained using the "parameter sharing softmax" and "soft-max-margin" losses in Table 6.
+- `Distribution Shift & Generalization (OOD)` (negative): The level-wise loss might not apply as well in hierarchies that contain leaf nodes of different depths...
+- `Interpretation of Results` (negative): The results in Table 4 lack sufficient significance to conclude that "for metrics like AP, AC, and Leaf F1, comprehensive training across all levels (denoted as L123467) outperforms other configurations"...
+- `Ablation & Attribution` (positive): The ablative study in Table 3 shows the improvement in accuracy obtained by using the text embedding and the contrastive loss.
+
+GPT main 覆盖：
+
+- `Baselines & Fair Comparison` (positive): The baseline methods were evaluated using the same pre-trained initialization (CLIP image encoder) and a large improvement is achieved (+8 points Average Precision).1.
+- `Metrics & Evaluation Criteria` (positive): Good use of hierarchical metrics.1.
+- `Data / Dataset Appropriateness` (positive): The methods are demonstrated on both balanced and imbalanced datasets.1.
+- `Ablation & Attribution` (negative): Overall, the ablative studies were well-constructed, and answered most of my queries about the method.I will use [1] to denote Valmadre (2022).1.
+- `Reproducibility & Implementation` (negative): (L294; also CE loss + Lxxxx distinct from Contrastive Loss + Lxxxx in Table 3) This needs to be explicitly defined.1.
+- `Statistical Evidence` (negative): The results in Table 4 lack sufficient significance to conclude that for metrics like AP, AC, and Leaf F1, comprehensive training across all levels (denoted as L123467) outperforms other configurations and consequently t...
+- `Distribution Shift & Generalization (OOD)` (negative): The level-wise loss might not apply as well in hierarchies that contain leaf nodes of different depths (I believe the iNaturalist taxonomy has a uniform depth of 7).1.
+- `Experimental Setup & Protocol` (negative): The diffusion procedure was not evaluated on models that were trained using the parameter sharing softmax and soft-max-margin losses in Table 6.1.
+- `Technical Correctness` (negative): It's inaccurate to characterize the *inference* procedure of [1] as bottom-up (e.g.
+- `Problem Setup Validity` (negative): The proposed level-wise loss does not seem to produce consistent probabilities as defined in [1]; i.e.
+- `Writing Clarity & Organization` (negative): I would use terminology like graph diffusion at the start of the paper to make it clear that you're not considering generative diffusion (DDPMs, stable diffusion, etc.).1.
+
+GPT mini 覆盖：
+
+- `Experimental Setup & Protocol` (negative): The methods are demonstrated on both balanced and imbalanced datasets.1.
+- `Ablation & Attribution` (negative): The ablative study in Table 3 shows the improvement in accuracy obtained by using the text embedding and the contrastive loss.1.
+- `Baselines & Fair Comparison` (negative): The baseline methods were evaluated using the same pre-trained initialization (CLIP image encoder) and a large improvement is achieved (+8 points Average Precision).1.
+- `Metrics & Evaluation Criteria` (positive): Good use of hierarchical metrics.1.
+- `Reproducibility & Implementation` (negative): Several details are unclear, see questions.Minor:1.
+- `Technical Correctness` (negative): The proposed level-wise loss does not seem to produce consistent probabilities as defined in [1]; i.e.
+- `Writing Clarity & Organization` (negative): Several details are unclear, see questions.Minor:1.
+- `Related Work Positioning & Citations` (negative): It's inaccurate to characterize the *inference* procedure of [1] as bottom-up (e.g.
+
+判断：Qwen `9 / 13`，GPT main `11 / 11`，GPT mini `6 / 8`。main 最稳；mini 把一些正面 baseline/ablation evidence 标成 negative；Qwen 覆盖好但有 Figures/Efficiency 错位。
+
+### 5. Adversarial Surprise for unsupervised RL
+
+Paper / Review：`JHXjK94yH-y` / `u49Ua9bS1Hr`，Year：2021
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+This paper introduces Adversarial Surprise, a new approach for unsupervised reinforcement learning in stochastic BMDPs, where the goal is to explore an environment without rewards. The algorithm uses a single agent with two policies, an Explorer and a Controller, which switch during an episode with opposite rewards: to maximize and minimize surprise. The method is supported by a theoretical argument under the assumptions of the stochastic BMDP. When these are present in an environment, the empirical results are strong. The method is also tested in Atari and Doom. Overall this is a neat idea, related to but distinct from previous works. The problem setting of a stochastic block MDP (BMDP) is well motivated although not frequently encountered in RL. The strongest results come from a new custom environment in MiniGrid, which clearly motivates the switching mechanism to discover interesting behaviors and fully explore the environment. In other environments the results are less compelling: in Doom the AGAC baseline is not included, while the Atari experiments are hard to interpret due to the choice of the four games, which is not clear. While I like the paper, I am voting for weak reject primarily because of the reporting protocol, only showing the top 3 seeds. This is known to be bad practice and does not seem justified, at least without presenting full results in the Appendix. As with any review it is possible I missed something, in which case I can change my score to reflect this during the discussion.More Detailed Comments:1. One of the greatest strengths of this work is that is it well motivated, and thorough. The related work section for instance positions the paper effectively within the literature, which is surprisingly rare. The flip side of this, is that the specific setting considered, stochastic BMDPs, seems very specific. It would be great to have more examples of real world settings where this setting would be present.2. The MiniGrid experiment is a nice example of a setting where existing methods fail in stochastic environments, with a switch that allows AS to remove the stochasticity. Is it the case that the Explore agent can turn the stochasticity back on? How often does it do this?3. Why are the methods in Fig. 2b) and 2c) different? E.g. AGAC is in one but not the other. More of an aesthetic issue but it is confusing switching the colors for methods in plots that are side by side.4. The authors say ViZDoom environment (Kempka et al., 2016b), which was used by AGAC and SMiRL, *but then do not include AGAC in the Doom experiments.* Why?5. How were the four Atari games chosen? As far as I am aware, the common games used for exploration are Montezuma's Revenge and Pitfall, but these were not included. This makes the reader question the choice, for example if the method works best for these but would do equally poorly on a different set of games. While it isn't the perfect environment by any means, Montezuma's Revenge is a good benchmark because it has been predefined, so if a method does/doesn't work there it can serve as a litmus test.6. How does AS combine with rewards? All of the other methods (aside from ASP) are designed for settings where an extrinsic reward is available, and they use this to get their best results. I know unsupervised or self-supervised RL is currently a popular topic, but in many cases we may have a reward function. Indeed - the baselines compared against were not designed to work in the regime they were tested in.7. How do you choose k? I may have missed it but couldn't find it anywhere. The paper does mention that the ability to tune this per environment is a strength, but as a reviewer it is a concern that this may have led to the performance gains and actually the method could be very sensitive to this hyperparameter. I am thinking if k is less than the size of the room with the switch, Alice and Bob could take turns to turn it on/off and then stay in the same room forever.8. The authors should cite RIDE, AMIGo and BeBold, three recent works studying exploration in procedurally generated environments. Comparison against them would be a nice to have but not expected, since AGAC is included and it compares against them.  Minor Comments/Typos:* p6, reference Equation 5 but I think you mean Equation 4.* p6, after the AS formula (min max) it says BMPD rather than BMDP. Later in that sentence, induce→ induces.* Fig 2.c) has the methods twice on the legend.* P7 Minigrid should have a capital G.The method is elegant and well motivated, hence a desire to see it accepted despite question marks about the experimental results. In particular, the broader applicability may be limited given the gains are clearest in the setting specifically designed to satisfy the properties which motivated the method. To increase my score I would need clarification around the evaluation protocol, which is already known to be challenging in RL without selecting the top 3 seeds (while saying 5 seeds elsewhere). I would also be happy to increase my score if there are additional baselines (e.g. AGAC for Doom) or benchmark environments (e.g. additional Atari games/MiniGrid environments), clarification around hyperparameter choices or an effective demonstration of combining AS with an extrinsic reward. Overall I could increase multiple times if this is improved. 
+```
+
+</details>
+
+Review 主要点：
+- Adversarial Surprise idea neat，problem framing well motivated。
+- top 3 seeds reporting protocol 是核心问题。
+- Doom/Atari baselines、game choice、k sensitivity、broader applicability、figure/typo 都被提出。
+
+Qwen 覆盖（原标注）：
+
+- `Motivation / Problem Framing` (positive): One of the greatest strengths of this work is that it is well motivated, and thorough. The related work section for instance positions the paper effectively within the literature, which
+- `Originality / Novelty` (positive): Overall this is a neat idea, related to but distinct from previous works.
+- `Fit to Venue / Scope` (negative): I am voting for weak reject primarily because of the reporting protocol, only showing the top 3 seeds. This is known to be bad practice and does not seem justified,
+- `Technical Correctness` (negative): The method is tested in Atari and Doom. Overall this is a neat idea, related to but distinct from previous works.
+- `Experimental Setup & Protocol` (negative): The Atari experiments are hard to interpret due to the choice of the four games, which is not clear.
+- `Baselines & Fair Comparison` (negative): Doom the AGAC baseline is not included, while the Atari experiments are hard to interpret due to the choice of the four games, which is not clear.
+- `Data / Dataset Appropriateness` (negative): Why are the methods in Fig. 2b) and 2c) different? E.g. AGAC is in one but not the other.
+- `Metrics & Evaluation Criteria` (negative): I am voting for weak reject primarily because of the reporting protocol, only showing the top 3 seeds. This is known to be bad practice and does not seem justified,
+- `Statistical Evidence` (negative): I am voting for weak reject primarily because of the reporting protocol, only showing the top 3 seeds. This is known to be bad practice and does not seem justified,
+- `Hyperparameter / Seed Sensitivity` (negative): How do you choose k? I may have missed it but couldn't find it anywhere. The paper does mention that the ability to tune this per environment is a strength,
+- `Distribution Shift & Generalization (OOD)` (positive): The strongest results come from a new custom environment in MiniGrid, which clearly motivates the switching mechanism to discover interesting behaviors and fully explore the environment.
+- `Interpretation of Results` (negative): The Atari experiments are hard to interpret due to the choice of the four games, which is not clear.
+- `Reproducibility & Implementation` (negative): I am voting for weak reject primarily because of the reporting protocol, only showing the top 3 seeds. This is known to be bad practice and does not seem justified,
+
+GPT main 覆盖：
+
+- `Motivation / Problem Framing` (positive): One of the greatest strengths of this work is that is it well motivated, and thorough.
+- `Originality / Novelty` (positive): Overall this is a neat idea, related to but distinct from previous works.
+- `Experimental Setup & Protocol` (negative): While I like the paper, I am voting for weak reject primarily because of the reporting protocol, only showing the top 3 seeds.
+- `Statistical Evidence` (negative): While I like the paper, I am voting for weak reject primarily because of the reporting protocol, only showing the top 3 seeds.
+- `Baselines & Fair Comparison` (negative): In other environments the results are less compelling: in Doom the AGAC baseline is not included, while the Atari experiments are hard to interpret due to the choice of the four games, which is not clear.
+- `Data / Dataset Appropriateness` (negative): In other environments the results are less compelling: in Doom the AGAC baseline is not included, while the Atari experiments are hard to interpret due to the choice of the four games, which is not clear.
+- `Hyperparameter / Seed Sensitivity` (negative): How do you choose k?
+- `Related Work Positioning & Citations` (negative): The related work section for instance positions the paper effectively within the literature, which is surprisingly rare.
+- `Figures / Tables & Visual Presentation` (negative): More of an aesthetic issue but it is confusing switching the colors for methods in plots that are side by side.4.
+- `Writing Clarity & Organization` (negative): Minor Comments/Typos:* p6, reference Equation 5 but I think you mean Equation 4.* p6, after the AS formula (min max) it says BMPD rather than BMDP.
+- `Distribution Shift & Generalization (OOD)` (negative): It would be great to have more examples of real world settings where this setting would be present.2.
+- `Interpretation of Results` (negative): In other environments the results are less compelling: in Doom the AGAC baseline is not included, while the Atari experiments are hard to interpret due to the choice of the four games, which is not clear.
+
+GPT mini 覆盖：
+
+- `Experimental Setup & Protocol` (negative): While I like the paper, I am voting for weak reject primarily because of the reporting protocol, only showing the top 3 seeds.
+- `Baselines & Fair Comparison` (negative): In other environments the results are less compelling: in Doom the AGAC baseline is not included, while the Atari experiments are hard to interpret due to the choice of the four games, which is not clear.
+- `Distribution Shift & Generalization (OOD)` (negative): In other environments the results are less compelling: in Doom the AGAC baseline is not included, while the Atari experiments are hard to interpret due to the choice of the four games, which is not clear.
+- `Hyperparameter / Seed Sensitivity` (negative): I am thinking if k is less than the size of the room with the switch, Alice and Bob could take turns to turn it on/off and then stay in the same room forever.8.
+- `Related Work Positioning & Citations` (negative): The related work section for instance positions the paper effectively within the literature, which is surprisingly rare.
+- `Originality / Novelty` (positive): Overall this is a neat idea, related to but distinct from previous works.
+- `Motivation / Problem Framing` (positive): The problem setting of a stochastic block MDP (BMDP) is well motivated although not frequently encountered in RL.
+
+判断：Qwen `7 / 13`，GPT main `12 / 12`，GPT mini `7 / 7`。main 覆盖完整；mini 主干准确但漏 statistical/figures/writing；Qwen 把 weak reject 当 Venue、把测试环境当 Technical。
+
+### 6. Goal-conditioned test-time training
+
+Paper / Review：`Nyjvjgh6jW` / `RQ413lRyIJ`，Year：2025
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+The paper proposes goal-conditioned test-time training (GC-TTT) for offline reinforcement learning. Instead of freezing a pre-trained goal-conditioned policy at inference, the method repeatedly fine-tunes it during evaluation on a small batch of goal-relevant, high-quality sub-trajectories drawn from the original offline dataset. Relevance is defined by proximity to the current state and optimality by an H-step return estimate using a learned critic; a critic-free variant uses reward returns on expert data. The updates are applied in a receding-horizon loop that resets weights every K steps, yielding consistent gains across OGBench loco-navigation and a manipulation task on top of GC-BC, GC-IQL, and SAW backbones. The paper further studies compute allocation at inference and shows that spending compute on GC-TTT outperforms simply scaling model size at matched inference FLOPs.* The core idea is simple, broadly applicable, and well-motivated by analogies to test-time adaptation in foundation models. The algorithmic design is clear: a principled data filter that combines state relevance with estimated return, plus a lightweight fine-tuning loop with periodic resets; the paper explains these choices and provides an ablation showing that both relevance and optimality are needed for the observed gains.* Empirically, the method consistently improves success rates across pointmaze, antmaze, humanoidmaze, and cubesingle when layered on GC-BC, GC-IQL, and SAW, sometimes converting weak pre-trained policies into strong ones with only a few gradient steps. The critic-free variant is a practical bonus for pure imitation settings with expert data. The compute analysis is thoughtful, reporting control frequency, profiling overheads, and showing that increasing TTT frequency often buys more than enlarging the backbone under matched FLOPs.* The approach assumes convenient access to the entire pre-training dataset at test time, plus fast retrieval by state proximity; the paper does not quantify memory and I/O costs or the latency of building and querying this index online.   * Several comparisons could be tighter. The compute comparison with model scaling relies on simplifying assumptions about FLOPs and may understate benefits of width scaling with better regularization; sensitivity analyses are limited. Some backbones are already near-saturated on certain tasks, and the absolute gains there are modest. Results use three seeds and fixed goals; it would help to include broader goal sets and confidence intervals or statistical tests. Finally, performance depends on critic quality and hyperparameters like K, N, and the percentile threshold; while there are ablations, guidance for robust default settings under distribution shift is limited.* How is state proximity computed in practice for high-dimensional observations and what indexing structure is used for fast retrieval at test time? Please report memory footprint, average query latency, and end-to-end wall-clock overhead per episode on your hardware.  * How sensitive is performance to the percentile threshold q and distance threshold, especially when relevant data are scarce or when the current state lies outside the support of D? Do you have a fallback for the no-data case beyond widening the threshold?  * Can you clarify the stability of the critic during test-time adaptation? Since the actor is updated but the critic guides data selection, is there drift that degrades the H-step estimate over repeated loops, and would periodic critic refresh help?  * In the compute study, could you include alternative baselines that also spend test-time compute, such as nearest-neighbor action retrieval, dynamic evaluation on behavior-cloned policies, or short-horizon planning with learned dynamics, matched for wall-clock and FLOPs?  * What happens if you also incorporate freshly collected transitions into the fine-tuning buffer, possibly with conservative weighting, so GC-TTT becomes a hybrid test-time online learner? Any early results or pitfalls you observed?
+```
+
+</details>
+
+Review 主要点：
+- GC-TTT 思路清楚，ablation 和 compute analysis 有正面评价。
+- 需要全预训练数据 test-time 访问和快速检索，memory/I/O/latency 未量化。
+- baselines、statistical tests、hyperparameter/OOD guidance 和 implementation details 需要补。
+
+Qwen 覆盖（原标注）：
+
+- `Fit to Venue / Scope` (positive): The core idea is simple, broadly applicable, and well-motivated by analogies to test-time adaptation in foundation models.
+- `Technical Correctness` (positive): The algorithmic design is clear: a principled data filter that combines state relevance with estimated return, plus a lightweight fine-tuning loop with periodic resets; the paper explains these choices and
+- `Reproducibility & Implementation` (negative): The approach assumes convenient access to the entire pre-training dataset at test time, plus fast retrieval by state proximity; the paper does not quantify memory and I/O costs or the
+- `Experimental Setup & Protocol` (negative): Results use three seeds and fixed goals; it would help to include broader goal sets and confidence intervals or statistical tests.
+- `Baselines & Fair Comparison` (negative): Several comparisons could be tighter. The compute comparison with model scaling relies on simplifying assumptions about FLOPs and may understate benefits of width scaling with better regularization; sensitivity analyses...
+- `Data / Dataset Appropriateness` (negative): The approach assumes convenient access to the entire pre-training dataset at test time, plus fast retrieval by state proximity; the paper does not quantify memory and I/O costs or the
+- `Metrics & Evaluation Criteria` (negative): Results use three seeds and fixed goals; it would help to include broader goal sets and confidence intervals or statistical tests.
+- `Statistical Evidence` (negative): Results use three seeds and fixed goals; it would help to include broader goal sets and confidence intervals or statistical tests.
+- `Hyperparameter / Seed Sensitivity` (negative): Performance depends on critic quality and hyperparameters like K, N, and the percentile threshold; while there are ablations, guidance for robust default settings under distribution shift is limited.
+- `Distribution Shift & Generalization (OOD)` (negative): Performance depends on critic quality and hyperparameters like K, N, and the percentile threshold; while there are ablations, guidance for robust default settings under distribution shift is limited.
+- `Related Work Positioning & Citations` (negative): The paper does not clearly position itself relative to prior work on test-time adaptation or offline reinforcement learning.
+- `Efficiency & Scalability` (positive): The compute analysis is thoughtful, reporting control frequency, profiling overheads, and showing that increasing TTT frequency often buys more than enlarging the backbone under matched FLOPs.
+- `Writing Clarity & Organization` (positive): The paper explains these choices and provides an ablation showing that both relevance and optimality are needed for the observed gains.
+
+GPT main 覆盖：
+
+- `Motivation / Problem Framing` (positive): The paper further studies compute allocation at inference and shows that spending compute on GC-TTT outperforms simply scaling model size at matched inference FLOPs.* The core idea is simple, broadly applicable, and well...
+- `Writing Clarity & Organization` (positive): The algorithmic design is clear: a principled data filter that combines state relevance with estimated return, plus a lightweight fine-tuning loop with periodic resets; the paper explains these choices and provides an ab...
+- `Ablation & Attribution` (positive): The algorithmic design is clear: a principled data filter that combines state relevance with estimated return, plus a lightweight fine-tuning loop with periodic resets; the paper explains these choices and provides an ab...
+- `Interpretation of Results` (negative): The algorithmic design is clear: a principled data filter that combines state relevance with estimated return, plus a lightweight fine-tuning loop with periodic resets; the paper explains these choices and provides an ab...
+- `Problem Setup Validity` (negative): The compute analysis is thoughtful, reporting control frequency, profiling overheads, and showing that increasing TTT frequency often buys more than enlarging the backbone under matched FLOPs.* The approach assumes conve...
+- `Efficiency & Scalability` (negative): The compute analysis is thoughtful, reporting control frequency, profiling overheads, and showing that increasing TTT frequency often buys more than enlarging the backbone under matched FLOPs.* The approach assumes conve...
+- `Baselines & Fair Comparison` (negative): * Several comparisons could be tighter.
+- `Statistical Evidence` (negative): Results use three seeds and fixed goals; it would help to include broader goal sets and confidence intervals or statistical tests.
+- `Hyperparameter / Seed Sensitivity` (negative): The compute comparison with model scaling relies on simplifying assumptions about FLOPs and may understate benefits of width scaling with better regularization; sensitivity analyses are limited.
+- `Distribution Shift & Generalization (OOD)` (negative): Finally, performance depends on critic quality and hyperparameters like K, N, and the percentile threshold; while there are ablations, guidance for robust default settings under distribution shift is limited.* How is sta...
+- `Reproducibility & Implementation` (negative): Finally, performance depends on critic quality and hyperparameters like K, N, and the percentile threshold; while there are ablations, guidance for robust default settings under distribution shift is limited.* How is sta...
+
+GPT mini 覆盖：
+
+- `Originality / Novelty` (positive): The paper further studies compute allocation at inference and shows that spending compute on GC-TTT outperforms simply scaling model size at matched inference FLOPs.* The core idea is simple, broadly applicable, and well...
+- `Interpretation of Results` (positive): The algorithmic design is clear: a principled data filter that combines state relevance with estimated return, plus a lightweight fine-tuning loop with periodic resets; the paper explains these choices and provides an ab...
+- `Efficiency & Scalability` (negative): The compute analysis is thoughtful, reporting control frequency, profiling overheads, and showing that increasing TTT frequency often buys more than enlarging the backbone under matched FLOPs.* The approach assumes conve...
+- `Reproducibility & Implementation` (negative): Finally, performance depends on critic quality and hyperparameters like K, N, and the percentile threshold; while there are ablations, guidance for robust default settings under distribution shift is limited.* How is sta...
+- `Experimental Setup & Protocol` (negative): * Several comparisons could be tighter.
+- `Ablation & Attribution` (positive): The algorithmic design is clear: a principled data filter that combines state relevance with estimated return, plus a lightweight fine-tuning loop with periodic resets; the paper explains these choices and provides an ab...
+- `Metrics & Evaluation Criteria` (negative): Results use three seeds and fixed goals; it would help to include broader goal sets and confidence intervals or statistical tests.
+
+判断：Qwen `9 / 13`，GPT main `10 / 11`，GPT mini `7 / 7`。main 和 mini 都准；main 覆盖更多；Qwen 有一条 Related Work 幻觉证据。
+
+### 7. DNN/PDE robustness framework
+
+Paper / Review：`fGEoHDk0C` / `BrRMyeORxH3`，Year：2021
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+The authors cast DNN classifiers as the push-forward of a base classifier under aflow map at some fixed final time. Under some reasonable assumptions on the flow,they show that, given any base classifier, the flow map can be obtained as the solutionto a convection-diffusion equation. They show that ResNets and Gaussian noise injectioncan be viewed as special cases of their model and give a robustness guarantee for any classifier defined as a solution to their PDE. Experiments on the 2-d half moon data setas well CIFAR 10 and 100 show better robustness  of their model to adversarial attacks when compared to standard ResNet(s).Apart from a few typos, the paper is well-written and generally easy to follow and understand.The proofs, while not containing any novel techniques, are rigorous and correct. Viewing a DNN model as the flow of a regular Markovian operator seems quite natural and generalizes the neural ODE idea. I also appreciate that the authors derive an explicit PDE based on very reasonable assumptions on the desired properties of a generic classifier. I also reallylike the illustrative example for ResNet and the Gaussian model injection, essentially viewing neural ODE(s) as the characteristic curves of a transport equation which is a special case of their more general convection-diffusion equation (for ResNet). I also liked therobustness guarantee which serves as an inspiration for using this framework to build modelsthat are better adept at handling adversarial examples. Generally, I think stability is the right motivation for considering such frameworks.The algorithms and numerics are the weaker parts of this work. It is unclear why the authors choose to reduce their PDE (1) to a re-scaled heat equation after showing that ResNet(s), models that are known to work well, come from a transport equation. Perhaps this simply makes the PDE easier to solve with less parameters to be learned. Nevertheless,I think exploring the more general form should certainly be done given the first part of the paper places a lot of emphasis on this result. My guess as to why the methods ends up working is that the diffusion form the heat equation is able to smooth out the loss functionwhich results in finding more stable regions of parameter space (perhaps there is a connection to https://arxiv.org/pdf/1704.04932.pdf which takes a similar point of view but with a viscous Hamilton-Jacobi equation on SGD instead)? The method of solving this heat equation just with another neural network seems a bit uninspired and is simply a special case of PINNS (https://www.sciencedirect.com/science/article/pii/S0021999118307125).While the PDE is very high dimensional, it is also very simple so applying some Using classical techniques to solve it will, I think, make for a very interesting comparison. Furthermore the numerics are not nearly extensive enough (I do appreciatethe half moon example showing the smoothed decision boundary). The authors need to consider more network architectures, not just ResNet, as well as harder datasets,like ImageNet, and more types of adversarial attacks to really make a case that this method is practically useful. Furthermore, there seems to be a significant decreasein accuracy for clean images. If this is to be practical, this issue must be resolvedas sacrificing 10% in accuracy for some robustness is usually not acceptable.Very interesting connection between DNN(s) and PDE(s), generalizing neural ODE(s) but the practical algorithms presented don't make a strong case for the method.
+```
+
+</details>
+
+Review 主要点：
+- DNN-PDE connection 有趣，proof correct，writing clear。
+- 算法和 numerics 较弱，heat equation reduction 和 PINNs-like solver 被质疑。
+- 需要更多架构、ImageNet、更广泛 attack、clean accuracy tradeoff 和 classical solver baseline。
+
+Qwen 覆盖（原标注）：
+
+- `Technical Correctness` (positive): The proofs, while not containing any novel techniques, are rigorous and correct.
+- `Technical Novelty` (negative): The method of solving this heat equation just with another neural network seems a bit uninspired and is simply a special case of PINNS
+- `Related Work Positioning & Citations` (positive): I also appreciate that the authors derive an explicit PDE based on very reasonable assumptions on the desired properties of a generic classifier
+- `Experimental Setup & Protocol` (negative): The authors need to consider more network architectures, not just ResNet, as well as harder datasets, like ImageNet, and more types of adversarial attacks
+- `Reproducibility & Implementation` (negative): The method of solving this heat equation just with another neural network seems a bit uninspired and is simply a special case of PINNS
+- `Efficiency & Scalability` (negative): If this is to be practical, this issue must be resolved as sacrificing 10% in accuracy for some robustness is usually not acceptable
+- `Writing Clarity & Organization` (positive): Apart from a few typos, the paper is well-written and generally easy to follow and understand
+- `Originality / Novelty` (positive): Viewing a DNN model as the flow of a regular Markovian operator seems quite natural and generalizes the neural ODE idea
+- `Fit to Venue / Scope` (positive): The paper is well-written and generally easy to follow and understand
+- `Metrics & Evaluation Criteria` (negative): The authors need to consider more network architectures, not just ResNet, as well as harder datasets, like ImageNet, and more types of adversarial attacks
+- `Hyperparameter / Seed Sensitivity` (negative): It is unclear why the authors choose to reduce their PDE (1) to a re-scaled heat equation...
+- `Distribution Shift & Generalization (OOD)` (negative): The authors need to consider more network architectures, not just ResNet, as well as harder datasets, like ImageNet, and more types of adversarial attacks
+- `Interpretation of Results` (negative): The authors need to consider more network architectures, not just ResNet, as well as harder datasets, like ImageNet, and more types of adversarial attacks
+
+GPT main 覆盖：
+
+- `Writing Clarity & Organization` (positive): Experiments on the 2-d half moon data setas well CIFAR 10 and 100 show better robustness  of their model to adversarial attacks when compared to standard ResNet(s).Apart from a few typos, the paper is well-written and ge...
+- `Technical Correctness` (positive): Experiments on the 2-d half moon data setas well CIFAR 10 and 100 show better robustness  of their model to adversarial attacks when compared to standard ResNet(s).Apart from a few typos, the paper is well-written and ge...
+- `Originality / Novelty` (positive): If this is to be practical, this issue must be resolvedas sacrificing 10% in accuracy for some robustness is usually not acceptable.Very interesting connection between DNN(s) and PDE(s), generalizing neural ODE(s) but th...
+- `Motivation / Problem Framing` (positive): Generally, I think stability is the right motivation for considering such frameworks.The algorithms and numerics are the weaker parts of this work.
+- `Problem Setup Validity` (negative): It is unclear why the authors choose to reduce their PDE (1) to a re-scaled heat equation after showing that ResNet(s), models that are known to work well, come from a transport equation.
+- `Technical Novelty` (negative): Experiments on the 2-d half moon data setas well CIFAR 10 and 100 show better robustness  of their model to adversarial attacks when compared to standard ResNet(s).Apart from a few typos, the paper is well-written and ge...
+- `Experimental Setup & Protocol` (negative): Furthermore the numerics are not nearly extensive enough (I do appreciatethe half moon example showing the smoothed decision boundary).
+- `Baselines & Fair Comparison` (negative): The method of solving this heat equation just with another neural network seems a bit uninspired and is simply a special case of PINNS (https://www.sciencedirect.com/science/article/pii/S0021999118307125).While the PDE i...
+- `Interpretation of Results` (negative): Furthermore, there seems to be a significant decreasein accuracy for clean images.
+
+GPT mini 覆盖：
+
+- `Writing Clarity & Organization` (positive): Experiments on the 2-d half moon data setas well CIFAR 10 and 100 show better robustness  of their model to adversarial attacks when compared to standard ResNet(s).Apart from a few typos, the paper is well-written and ge...
+- `Technical Correctness` (positive): Experiments on the 2-d half moon data setas well CIFAR 10 and 100 show better robustness  of their model to adversarial attacks when compared to standard ResNet(s).Apart from a few typos, the paper is well-written and ge...
+- `Originality / Novelty` (positive): Viewing a DNN model as the flow of a regular Markovian operator seems quite natural and generalizes the neural ODE idea.
+- `Motivation / Problem Framing` (positive): Generally, I think stability is the right motivation for considering such frameworks.The algorithms and numerics are the weaker parts of this work.
+- `Experimental Setup & Protocol` (negative): The authors need to consider more network architectures, not just ResNet, as well as harder datasets,like ImageNet, and more types of adversarial attacks to really make a case that this method is practically useful.
+- `Distribution Shift & Generalization (OOD)` (negative): The authors need to consider more network architectures, not just ResNet, as well as harder datasets,like ImageNet, and more types of adversarial attacks to really make a case that this method is practically useful.
+
+判断：Qwen `7 / 13`，GPT main `9 / 9`，GPT mini `6 / 6`。main 覆盖最完整；mini 精准但漏 efficiency/baseline/technical novelty；Qwen Venue/Related Work/Reproducibility 误标。
+
+### 8. Couple-dance mocap and generation
+
+Paper / Review：`KfkmwYQXWh` / `fE19txHpeO`，Year：2024
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+This paper presents a mocap dataset for couple dances, a novel motion representation that takes contact into account, and a diffusion-based model for predicting conditional motion during couple dance.* The proposed mocap dataset is a good contribution to the community especially as it contains enough fine-grained information to capture contact points between people.* The proposed motion representation prioritizes correctly predicting contact, something that is often missing from similar works.* The proposed diffusion-based method seems to achieve competitive results (though see weaknesses and questions for issues with the evaluation methodology).* Evaluation:    * Simple strong baselines missing from the quantitative and qualitative experiments:        * Return a NN motion clip of a follower from the training set where the distance is calculated based on motion-based distance        * Return a NN motion clip of a follower from the training set where the distance is calculated based on a SOTA music embedding distance        * Mirror the motion of the leader.    * Metrics:        * Missing a measure of correlation between the dancers in comparison to ground truth (see questions below)    * Baselines:        * Missing an apples-to-Apples comparison with existing baselines on the datasets on which they were trained:            * Result tables in main and appendix only seem to test Duolando on the InterDance dataset or train the proposed method on DD100 (Table 3 in the appendix E) but I couldn’t find an apples-to-apples comparison of the proposed method trained and tested on the existing DD100 to Duolando trained and tested on DD100 (allowing Duolando to be tested on the dataset on which it was trained.            * This apples-to-apples comparison is crucial in the case of Duolando which learns a motion codebook from training data and therefore is not suited to be tested on out-of-distribution dance genres. * Exposition:    * Missing some implementation details for the experimental setup (see details below in the questions section)    * Missing details of the user study: where were participants recruited from, how were they compensated, in what format were videos presented, in what resolution, was music included and did the experimenters verify it was in use, etc.* Smaller notes:    * The caption of Table 1 is not entirely factual as stated since InterHuman has Strong interaction and a longer total duration: “Among duet dance datasets with strong interaction, InterDance features the widest range of 15 dance genres, the longest average duration per sample at 142.7 seconds, and the longest total duration of 3.93 hours.”* Limitations:    * Limitations are not properly discussed. As in all studies, there are limitations in both dataset and method. These are to be expected, but should also be mentioned.         * The dataset is indeed larger than existing mocap ones, but is still a small dataset when compared to methods that can rely on image-based 3D lifting. There is a balance here between data quality and quantity, but that should be mentioned.        * There are limitations to using diffusion-based generative models for motion prediction in comparison with autoregressive methods, namely the full trajectory is predicted at once, without training to predict longer sequences in a sliding-window fashion.        * This is the only limitation mentioned: “The potential societal impact is that, as dance generation and human interaction technology become more advanced, highly realistic virtual humans might lead users to become so immersed in the virtual world that they detach from real-world participation.” (L 531). However, if this technology becomes more advanced, more imminent limitations may present themselves. Namely, music-to-dance and person-to-person prediction of dance may be used by AI systems to replace human dancers and choreographers, leading to a less creative human kind and numerous copyright issues.* Dataset: why not combine with DD100 to create a larger total dataset?* Motion representation: if the root translation and angle is modeled jointly with the body pose (joints and vertices) it seems to me that translation, orientation, and pose would be coupled together. i.e. a person lifting their leg at point A in space would need a different representation then a person lifting their leg in the same way at point B in space. This seems to lead to needing more data in order to learn motion priors from the data as opposed to representations that would decouple pose from location and orientation. I am not listing this as a limitation yet as I would like to hear your thoughts about this issue. Would you be so kind as to explain this to me?* Evaluation:    * Metrics:        * How is FID calculated?        * While cross distance captures the distance between the two dancers, I am missing some measure of the correlation between the motion dynamics of the two dancers (see, for example paired FD here: https://arxiv.org/pdf/2204.08451). Do you think that cross distance captures this already somehow? If so, please explain. If not, I would suggest adding a measure of correlation in comparison to the ground truth correlation.    * Baselines:        * how are Edge and InterGen modified for benchmarking on this task (as they were designed a trained for different tasks)? Details are not given in the manuscript.        * Was Duolando trained on the proposed InterDance dataset for the experiments presented? Or was it trained on its original DD100 dataset and tested on InterDance?        * The following explanation regarding the performance of Duolando is cryptic to me. Please explain what you meant by it (line 421) “Compared with Duolando, which is carefully designed for reactive dance generation, our method performs better in most metrics. This is because Duolando employs a two-stage training framework that stores motions in a codebook, making it difficult to optimize fine-grained interactions.”* Result videos:    * Are the result videos on unseen test examples or from the train/val set?    * Are the other methods in the result videos tested on the newly proposed dataset or on their original datasets on which they were trained? Was testing conducted on the test sets of the other methods in comparison?    * Why is EDGE not in the results videos?    * Please provide results also on randomly-chosen (rather than cherry-picked) examples.
+```
+
+</details>
+
+Review 主要点：
+- couple-dance mocap dataset 和 contact-aware representation 有贡献。
+- 缺少 strong baselines、correlation metric、apples-to-apples comparison。
+- user study details、dataset size、table caption、limitations 和 societal impacts 需补。
+
+Qwen 覆盖（原标注）：
+
+- `Fit to Venue / Scope` (negative): The proposed mocap dataset is a good contribution to the community especially as it contains enough fine-grained information to capture contact points between people.
+- `Technical Correctness` (negative): The proposed motion representation prioritizes correctly predicting contact, something that is often missing from similar works.
+- `Reproducibility & Implementation` (negative): Missing details of the user study: where were participants recruited from, how were they compensated, in what format were videos presented, in what resolution, was music included and did the
+- `Experimental Setup & Protocol` (negative): Missing some implementation details for the experimental setup (see details below in the questions section)
+- `Baselines & Fair Comparison` (negative): Simple strong baselines missing from the quantitative and qualitative experiments
+- `Metrics & Evaluation Criteria` (negative): Missing a measure of correlation between the dancers in comparison to ground truth (see questions below)
+- `Data / Dataset Appropriateness` (negative): The caption of Table 1 is not entirely factual as stated since InterHuman has Strong interaction and a longer total duration
+- `Societal / Broader Impacts` (negative): The potential societal impact is that, as dance generation and human interaction technology become more advanced, highly realistic virtual humans might lead users to become so immersed in the virtual
+- `Technical Novelty` (positive): The proposed motion representation prioritizes correctly predicting contact, something that is often missing from similar works
+- `Originality / Novelty` (positive): The proposed mocap dataset is a good contribution to the community especially as it contains enough fine-grained information to capture contact points between people
+- `Related Work Positioning & Citations` (negative): Missing an apples-to-apples comparison with existing baselines on the datasets on which they were trained
+- `Ethics / Safety / Misuse` (negative): The potential societal impact is that, as dance generation and human interaction technology become more advanced, highly realistic virtual humans might lead users to become so immersed in the virtual
+
+GPT main 覆盖：
+
+- `Technical Novelty` (positive): This paper presents a mocap dataset for couple dances, a novel motion representation that takes contact into account, and a diffusion-based model for predicting conditional motion during couple dance.* The proposed mocap...
+- `Data / Dataset Appropriateness` (negative): This paper presents a mocap dataset for couple dances, a novel motion representation that takes contact into account, and a diffusion-based model for predicting conditional motion during couple dance.* The proposed mocap...
+- `Baselines & Fair Comparison` (negative): This paper presents a mocap dataset for couple dances, a novel motion representation that takes contact into account, and a diffusion-based model for predicting conditional motion during couple dance.* The proposed mocap...
+- `Metrics & Evaluation Criteria` (negative): * Metrics:        * Missing a measure of correlation between the dancers in comparison to ground truth (see questions below)    * Baselines:        * Missing an apples-to-Apples comparison with existing baselines on the...
+- `Experimental Setup & Protocol` (negative): * Exposition:    * Missing some implementation details for the experimental setup (see details below in the questions section)    * Missing details of the user study: where were participants recruited from, how were they...
+- `Reproducibility & Implementation` (negative): * Exposition:    * Missing some implementation details for the experimental setup (see details below in the questions section)    * Missing details of the user study: where were participants recruited from, how were they...
+- `Distribution Shift & Generalization (OOD)` (negative): * This apples-to-apples comparison is crucial in the case of Duolando which learns a motion codebook from training data and therefore is not suited to be tested on out-of-distribution dance genres.
+- `Figures / Tables & Visual Presentation` (negative): * Exposition:    * Missing some implementation details for the experimental setup (see details below in the questions section)    * Missing details of the user study: where were participants recruited from, how were they...
+- `Writing Clarity & Organization` (negative): * The following explanation regarding the performance of Duolando is cryptic to me.
+- `Interpretation of Results` (negative): * Exposition:    * Missing some implementation details for the experimental setup (see details below in the questions section)    * Missing details of the user study: where were participants recruited from, how were they...
+- `Societal / Broader Impacts` (negative): However, if this technology becomes more advanced, more imminent limitations may present themselves.
+
+GPT mini 覆盖：
+
+- `Experimental Setup & Protocol` (negative): This paper presents a mocap dataset for couple dances, a novel motion representation that takes contact into account, and a diffusion-based model for predicting conditional motion during couple dance.* The proposed mocap...
+- `Baselines & Fair Comparison` (negative): This paper presents a mocap dataset for couple dances, a novel motion representation that takes contact into account, and a diffusion-based model for predicting conditional motion during couple dance.* The proposed mocap...
+- `Metrics & Evaluation Criteria` (negative): * Metrics:        * Missing a measure of correlation between the dancers in comparison to ground truth (see questions below)    * Baselines:        * Missing an apples-to-Apples comparison with existing baselines on the...
+- `Reproducibility & Implementation` (negative): * Exposition:    * Missing some implementation details for the experimental setup (see details below in the questions section)    * Missing details of the user study: where were participants recruited from, how were they...
+- `Data / Dataset Appropriateness` (negative): * The dataset is indeed larger than existing mocap ones, but is still a small dataset when compared to methods that can rely on image-based 3D lifting.
+- `Interpretation of Results` (negative): * The following explanation regarding the performance of Duolando is cryptic to me.
+- `Originality / Novelty` (positive): This paper presents a mocap dataset for couple dances, a novel motion representation that takes contact into account, and a diffusion-based model for predicting conditional motion during couple dance.* The proposed mocap...
+
+判断：Qwen `8 / 12`，GPT main `10 / 11`，GPT mini `7 / 7`。main 捕捉 societal/figures/OOD 等细节；mini 干净但漏 technical novelty/societal；Qwen 把正面贡献错标为负面 Fit/Technical。
+
+### 9. SubZero zeroth-order LLM fine-tuning
+
+Paper / Review：`FK6T0U4Mg1` / `XhV3jyK4cq`，Year：2024
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+The paper introduces SubZero, a random subspace zeroth-order optimization method designed for memory-efficient fine-tuning of large language models (LLMs). Traditional backpropagation becomes impractical for such massive models due to high memory demands, and while zeroth-order (ZO) methods offer a memory-efficient alternative by estimating gradients using only forward passes, they suffer from high variance in high-dimensional settings typical of LLMs. SubZero addresses this issue by applying layer-specific low-rank perturbations, significantly reducing memory consumption and improving training performance. The authors theoretically prove that their gradient estimates closely approximate those from backpropagation and have lower variance than traditional ZO methods. They also introduce a simple yet effective pretraining strategy to implement SubZero effectively. Furthermore, they integrate SubZero into traditional and parameter-efficient fine-tuning techniques like LoRA, proposing specific adjustments to enhance this integration.1. Clear and Well-Written: The paper is well-written, making complex concepts—including theoretical proofs—accessible and easy to understand.2. Addresses a Critical Problem in Traditional LLM Fine-Tuning: It tackles the significant issue of high memory consumption during fine-tuning of large language models (LLMs). By maintaining only six matrices—a subset of the original full model—it substantially reduces memory requirements.3. Effective Use of Zeroth-Order Optimization: The authors leverage existing zeroth-order (ZO) methods to approximate gradients efficiently. Their approach yields gradient estimates that are closer to true gradients and exhibit lower variance than traditional ZO methods.4. Reproducibility Through Detailed Pseudocode: The inclusion of straightforward pseudocode and comprehensive methodological details ensures that the work is reproducible and easy to follow.5. Comprehensive Ablation Studies: The paper provides thorough ablation studies on the components of the method. These experiments validate the effectiveness of each component and demonstrate their contributions to the overall performance.6. Modularity and Integration with Existing Fine-Tuning techniques: It's commendable that the method is designed as a module that can be incorporated into both traditional fine-tuning and parameter-efficient fine-tuning methods like LoRA. The authors address issues arising from this integration by proposing practical techniques, investigating their validity and effectiveness, and ultimately delivering a robust and versatile method.7. Strong Theoretical and Empirical Support: All claims are substantiated with theoretical proofs and empirical investigations.8. Performance Improvements Over SoTA: The method shows performance boosts compared to existing state-of-the-art ZO methods, achieving faster convergence and better fine-tuning results across various language modeling tasks.9. Evaluation on Diverse Downstream Tasks and Models: The authors use a variety of benchmarks and models to demonstrate the performance and ease of application of their method.1. Lack of Comparison with Vanilla LoRA: The paper does not compare the proposed ZO-LoRA method directly with the standard LoRA approach, making it difficult to quantify the benefits of using ZO-LoRA over existing parameter-efficient fine-tuning methods. Including such a baseline would clarify the practical advantages of SubZero.2. Missing Advanced LoRA Baselines: The evaluation does not consider advanced LoRA variants like AutoLoRA (Zhang et al., 2024). Including comparisons with such methods could strengthen the practical relevance of the paper.3. Inconsistency in Reporting Results: In Table 2, for the SST-2 column under ZO-FT methods, the best-performing metric is not correctly highlighted; SubZero's metric is highlighted instead of the incumbent method's performance.4. Influence of ReCoRD Task on Overall Performance: The ReCoRD task appears to disproportionately influence the average performance in the fine-tuning case. Excluding ReCoRD, the average scores for the methods become very similar (69.4, 70, and 70.4), making the differences negligible.5. Unclear Computational Overheads and Budgets: In Figure 1c (training loss vs. wall-clock time), it is unclear whether the overhead associated with ZO methods is included. Additionally, the methods seem to have different computational budgets, complicating the comparison of convergence speeds and efficiency.6. Need for Clarification on Variance Reduction: The paper emphasizes that SubZero reduces variance in gradient estimates and accelerates convergence. While it's generally understood that lower variance can lead to faster convergence, it's unclear why these are presented as two separate points. Clarifying this relationship would enhance understanding.1. Have you compared ZO-LoRA directly with vanilla LoRA, and can you provide the results?2. Could you include comparisons with advanced LoRA variants like AutoLoRA to strengthen the practical side of your evaluation?3. In Table 2, could you verify and correct the highlighting for the best metric in the SST-2 column under ZO-FT methods?4. Could you explain the low performance of the ReCoRD task for S-MeZO?5. In Figure 1c, does the wall-clock time include ZO methods' overhead, and why do the methods have different computational budgets?6. Why are variance reduction and accelerated convergence presented as separate points when faster convergence is generally a result of lower variance in gradients?
+```
+
+</details>
+
+Review 主要点：
+- SubZero 针对 LLM fine-tuning memory 问题，写作、pseudocode、ablation 都受到表扬。
+- 缺少 vanilla LoRA / advanced LoRA fair comparison。
+- compute overhead、budget、Table 2 highlight、ReCoRD dominance 等需要澄清。
+
+Qwen 覆盖（原标注）：
+
+- `Writing Clarity & Organization` (positive): The paper is well-written, making complex concepts—including theoretical proofs—accessible and easy to understand.
+- `Problem Setup Validity` (positive): It tackles the significant issue of high memory consumption during fine-tuning of large language models (LLMs).
+- `Technical Correctness` (positive): The authors theoretically prove that their gradient estimates closely approximate those from backpropagation and have lower variance than traditional ZO methods.
+- `Reproducibility & Implementation` (positive): The inclusion of straightforward pseudocode and comprehensive methodological details ensures that the work is reproducible and easy to follow.
+- `Ablation & Attribution` (positive): The paper provides thorough ablation studies on the components of the method. These experiments validate the effectiveness of each component and demonstrate their contributions to the overall performance.
+- `Technical Novelty` (positive): The authors leverage existing zeroth-order (ZO) methods to approximate gradients efficiently. Their approach yields gradient estimates that are closer to true gradients and exhibit lower variance than traditional ZO meth...
+- `Experimental Setup & Protocol` (positive): The authors use a variety of benchmarks and models to demonstrate the performance and ease of application of their method.
+- `Metrics & Evaluation Criteria` (positive): The method shows performance boosts compared to existing state-of-the-art Z, achieving faster convergence and better fine-tuning results across various language modeling tasks.
+- `Statistical Evidence` (positive): All claims are substantiated with theoretical proofs and empirical investigations.
+- `Efficiency & Scalability` (negative): In Figure 1c (training loss vs. wall-clock time), it is unclear whether the overhead associated with ZO methods is included.
+- `Baselines & Fair Comparison` (negative): The paper does not compare the proposed ZO-LoRA method directly with the standard LoRA approach, making it difficult to quantify the benefits of using ZO-LoRA over existing parameter-efficient fine-tuning methods.
+- `Data / Dataset Appropriateness` (negative): In Table 2, for the SST-2 column under ZO-FT methods, the best-performing metric is not correctly highlighted; SubZero's metric is highlighted instead of the incumbent method's performance.
+
+GPT main 覆盖：
+
+- `Writing Clarity & Organization` (positive): Clear and Well-Written: The paper is well-written, making complex concepts—including theoretical proofs—accessible and easy to understand.2.
+- `Motivation / Problem Framing` (positive): Addresses a Critical Problem in Traditional LLM Fine-Tuning: It tackles the significant issue of high memory consumption during fine-tuning of large language models (LLMs).
+- `Reproducibility & Implementation` (positive): Reproducibility Through Detailed Pseudocode: The inclusion of straightforward pseudocode and comprehensive methodological details ensures that the work is reproducible and easy to follow.5.
+- `Ablation & Attribution` (positive): Comprehensive Ablation Studies: The paper provides thorough ablation studies on the components of the method.
+- `Baselines & Fair Comparison` (negative): Performance Improvements Over SoTA: The method shows performance boosts compared to existing state-of-the-art ZO methods, achieving faster convergence and better fine-tuning results across various language modeling tasks...
+- `Figures / Tables & Visual Presentation` (negative): Inconsistency in Reporting Results: In Table 2, for the SST-2 column under ZO-FT methods, the best-performing metric is not correctly highlighted; SubZero's metric is highlighted instead of the incumbent method's perform...
+- `Efficiency & Scalability` (negative): By maintaining only six matrices—a subset of the original full model—it substantially reduces memory requirements.3.
+- `Distribution Shift & Generalization (OOD)` (positive): Evaluation on Diverse Downstream Tasks and Models: The authors use a variety of benchmarks and models to demonstrate the performance and ease of application of their method.1.
+- `Interpretation of Results` (negative): Influence of ReCoRD Task on Overall Performance: The ReCoRD task appears to disproportionately influence the average performance in the fine-tuning case.
+
+GPT mini 覆盖：
+
+- `Writing Clarity & Organization` (positive): Clear and Well-Written: The paper is well-written, making complex concepts—including theoretical proofs—accessible and easy to understand.2.
+- `Reproducibility & Implementation` (positive): Reproducibility Through Detailed Pseudocode: The inclusion of straightforward pseudocode and comprehensive methodological details ensures that the work is reproducible and easy to follow.5.
+- `Ablation & Attribution` (positive): Comprehensive Ablation Studies: The paper provides thorough ablation studies on the components of the method.
+- `Baselines & Fair Comparison` (negative): Lack of Comparison with Vanilla LoRA: The paper does not compare the proposed ZO-LoRA method directly with the standard LoRA approach, making it difficult to quantify the benefits of using ZO-LoRA over existing parameter...
+- `Figures / Tables & Visual Presentation` (negative): Unclear Computational Overheads and Budgets: In Figure 1c (training loss vs.
+- `Experimental Setup & Protocol` (negative): Additionally, the methods seem to have different computational budgets, complicating the comparison of convergence speeds and efficiency.6.
+- `Interpretation of Results` (negative): Influence of ReCoRD Task on Overall Performance: The ReCoRD task appears to disproportionately influence the average performance in the fine-tuning case.
+
+判断：Qwen `11 / 12`，GPT main `8 / 9`，GPT mini `7 / 7`。三者都不错；main 的 Distribution Shift 略宽；mini 漏 positive motivation/technical correctness 等；Qwen 只有 Data/Dataset 明显错。
+
+### 10. Missing-at-random DiD
+
+Paper / Review：`44Pc9erEIV` / `8ry7XWmVdr`，Year：2025
+
+<details>
+<summary>原始 review 全文</summary>
+
+```text
+The paper studies two-group, two-period Difference-in-Differences when pretreatment outcomes are Missing-At-Random (MAR). It targets the Average Treatment Effect on the Treated. The authors give two identification strategies: (i) MAR given $(X,A)$ and (ii) MAR given $(X,A,Y)$. For each, they derive the observed-data efficient influence function and the semiparametric efficiency bound. They then construct cross-fitted estimators that achieve the bounds and show “multiple robustness”: consistency holds if certain sets of nuisance models are correct. A simulation study illustrates bias/RMSE patterns across correctly specified vs misspecified nuisances.Originality- Treats missing pre- or post- outcomes in the canonical $2 \times 2$ DiD with covariates, and does so in a semiparametric framework with explicit EIFs. Prior DiD papers often assume full outcomes or focus on staggered timing without MAR-aware efficiency analysis. Framing MAR both as post-treatment outcome-independent (given $X, A$ ) and post-treatment outcome-dependent (given $X, Y_1, A$ ) is a clear conceptual step.- The nested regression component $\eta_0(x, 0)=\mathbb{E}\left[\mu_0\left(x, Y_1, 0\right) \mid X=x, A=0\right]$ and its stability analysis give a concrete recipe to learn the extra layer needed under outcome-dependent MAR. This is a neat link to modern DR-Learner style ideas.Quality- Identification statements are precise, and the EIFs are derived with clear bookkeeping of nuisance components $(\mu, \pi, \gamma, \eta)$. The efficiency-loss decompositions versus the fully-observed benchmark are informative.- The cross-fitting scheme and high-level conditions for asymptotic normality align with current best practice and are stated cleanly.Clarity- The paper lays out the two MAR regimes, writes explicit plug-in equations for estimators, and provides a concise multiple-robustness table. This helps readers see exactly which nuisance pieces must be correct for consistency.- The simulations mirror the theory with clear toggles between correctly specified and misspecified nuisances. Significance- DiD with missing outcomes is common in applied work. A semi-parametrically efficient, multiply robust procedure is valuable for practice, especially when complete-case strategies are biased. The results can plug into modern ML pipelines through cross-fitting.1. Positioning vs related work (novelty claims).The paper cites DiD with staggered adoption and some recent missing-data DiD work, but the empirical reader will ask: how do your estimators compare to (a) complete-case DiD (DiD with missing items dropped), (b) simple inverse-probability weighting for $R_0$, (c) regression imputation baselines, and (d) standard DR DiD with fully observed outcomes?So, could the authors add a benchmark section with these baselines, including plots of bias, RMSE, and coverage? It would be better include a brief analytic comparison to DR DiD under full data to highlight where efficiency is lost and recovered.2. Inference and coverage.The simulations emphasize bias and RMSE but not confidence interval coverage or interval length. Since the paper claims efficiency and gives EIFs, empirical coverage is central.Could the authors report empirical coverage and average CI width across scenarios, including small-sample behavior and the impact of fold choice $J$? The authors can show whether the sandwich variance based on the estimated EIF is reliable.3. Plausibility of MAR assumptions.Outcome-dependent MAR given $Y_1$ is subtle: it conditions on a post-treatment variable. I was wondering which examples in the Introduction (job training programs in labor economics, prior test scores in education policy, and EHR in health research) would arguably satisfy this assumption.4. Nested regression learning details.The stability definition and oracle rates are high-level. Readers will want concrete guidance: what models to fit for $\mu_0\left(x, y_1, a\right)$, how to construct pseudo-outcomes with augmentation, and how to tune them.Can the authors add an algorithm box for learning $\eta_0$ under both the regression and conditional-density approaches? They can also give default choices (e.g., gradient-boosted trees for $\mu$, logistic for $\gamma$, random-forest regression for $\eta$ ), with practical notes on hyperparameter tuning, cross-fitting folds, and clipping for $\hat{\gamma}$. 5. External validity and real data.The paper would benefit from at least one real application to show end-to-end feasibility and the size of efficiency gains in practice.Can the authors add a compact empirical example (even in the appendix)? They can report the estimated ATT with the proposed method and the baselines, Cl widths, and a short discussion of assumption plausibility in that setting.1. On outcome-dependent MAR:In practice, when would you recommend modeling $\operatorname{Pr}\left(R_0=1 \mid X, Y_1, A\right)$ rather than $\operatorname{Pr}\left(R_0=\right. 1 \mid X, A)$ ? Can you provide guidance or a rule-of-thumb diagnostic for deciding whether including $Y_1$ is likely to help or to add variance? Any empirical check that conditioning on $Y_1$ does not induce harmful instability?2. Efficiency gains in practice:Can you report the magnitude of efficiency gains (variance reduction) relative to simple IPW or regression imputation in your simulations and, ideally, one real dataset? A table with bound estimates, plug-in variances, and empirical variances would help.3. Coverage under misspecification:When multiple robustness conditions fail, how badly do Cls mis-cover? Please provide coverage heatmaps across nuisance-misspecification cells to show the method's breaking points.4. Learning $\eta_0$ :For the augmented pseudo-outcome strategy, do you recommend trimming on $\hat{\gamma}$? If so, what thresholds and what is the implied target estimand after trimming? How sensitive are results to this choice?
+```
+
+</details>
+
+Review 主要点：
+- MAR-DiD 的 EIF / efficiency / multiple robustness 有清晰贡献。
+- 需要更多 baseline comparison、coverage/CI width、real application。
+- MAR plausibility、nested regression implementation、tuning/folds/clipping 需要更具体。
+
+Qwen 覆盖（原标注）：
+
+- `Originality / Novelty` (positive): Originality - Treats missing pre- or post- outcomes in the canonical 2 × 2 DiD with covariates, and does so in a semiparametric framework with explicit EIFs.
+- `Fit to Venue / Scope` (negative): The paper cites DiD with staggered adoption and some recent missing-data DiD work, but the empirical reader will ask: how do your estimators compare to (a) complete-case DiD...
+- `Technical Correctness` (positive): Identification statements are precise, and the EIFs are derived with clear bookkeeping of nuisance components (μ, π, γ, η).
+- `Experimental Setup & Protocol` (positive): The cross-fitting scheme and high-level conditions for asymptotic normality align with current best practice and are stated cleanly.
+- `Baselines & Fair Comparison` (negative): could the authors add a benchmark section with these baselines, including plots of bias, RMSE, and coverage?
+- `Metrics & Evaluation Criteria` (negative): The simulations emphasize bias and RMSE but not confidence interval coverage or interval length.
+- `Reproducibility & Implementation` (negative): Readers will want concrete guidance: what models to fit for μ₀(x, y₁, a), how to construct pseudo-outcomes with augmentation, and how to tune them.
+- `Efficiency & Scalability` (positive): A semi-parametrically efficient, multiply robust procedure is valuable for practice, especially when complete-case strategies are biased.
+- `Writing Clarity & Organization` (positive): The paper lays out the two MAR regimes, writes explicit plug-in equations for estimators, and provides a concise "multiple-robustness" table.
+- `Related Work Positioning & Citations` (negative): The paper cites DiD with staggered adoption and some recent missing-data DiD work, but the empirical reader will ask: how do your estimators compare to (a) complete-case DiD...
+- `Ethics / Safety / Misuse` (negative): The paper would benefit from at least one real application to show end-to-end feasibility and the size of efficiency gains in practice.
+- `Societal / Broader Impacts` (positive): DiD with missing outcomes is common in applied work. A semi-parametrically efficient, multiply robust procedure is valuable for practice...
+
+GPT main 覆盖：
+
+- `Originality / Novelty` (positive): Framing MAR both as post-treatment outcome-independent (given $X, A$ ) and post-treatment outcome-dependent (given $X, Y_1, A$ ) is a clear conceptual step.- The nested regression component $\eta_0(x, 0)=\mathbb{E}\left[...
+- `Technical Novelty` (positive): Framing MAR both as post-treatment outcome-independent (given $X, A$ ) and post-treatment outcome-dependent (given $X, Y_1, A$ ) is a clear conceptual step.- The nested regression component $\eta_0(x, 0)=\mathbb{E}\left[...
+- `Motivation / Problem Framing` (positive): Significance- DiD with missing outcomes is common in applied work.
+- `Writing Clarity & Organization` (positive): The efficiency-loss decompositions versus the fully-observed benchmark are informative.- The cross-fitting scheme and high-level conditions for asymptotic normality align with current best practice and are stated cleanly...
+- `Related Work Positioning & Citations` (negative): Positioning vs related work (novelty claims).The paper cites DiD with staggered adoption and some recent missing-data DiD work, but the empirical reader will ask: how do your estimators compare to (a) complete-case DiD (...
+- `Baselines & Fair Comparison` (negative): Positioning vs related work (novelty claims).The paper cites DiD with staggered adoption and some recent missing-data DiD work, but the empirical reader will ask: how do your estimators compare to (a) complete-case DiD (...
+- `Metrics & Evaluation Criteria` (negative): Inference and coverage.The simulations emphasize bias and RMSE but not confidence interval coverage or interval length.
+- `Statistical Evidence` (negative): Since the paper claims efficiency and gives EIFs, empirical coverage is central.Could the authors report empirical coverage and average CI width across scenarios, including small-sample behavior and the impact of fold ch...
+- `Problem Setup Validity` (negative): Plausibility of MAR assumptions.Outcome-dependent MAR given $Y_1$ is subtle: it conditions on a post-treatment variable.
+- `Reproducibility & Implementation` (negative): Nested regression learning details.The stability definition and oracle rates are high-level.
+- `Hyperparameter / Seed Sensitivity` (negative): They can also give default choices (e.g., gradient-boosted trees for $\mu$, logistic for $\gamma$, random-forest regression for $\eta$ ), with practical notes on hyperparameter tuning, cross-fitting folds, and clipping f...
+- `Distribution Shift & Generalization (OOD)` (negative): External validity and real data.The paper would benefit from at least one real application to show end-to-end feasibility and the size of efficiency gains in practice.Can the authors add a compact empirical example (even...
+
+GPT mini 覆盖：
+
+- `Originality / Novelty` (positive): Framing MAR both as post-treatment outcome-independent (given $X, A$ ) and post-treatment outcome-dependent (given $X, Y_1, A$ ) is a clear conceptual step.- The nested regression component $\eta_0(x, 0)=\mathbb{E}\left[...
+- `Experimental Setup & Protocol` (negative): This helps readers see exactly which nuisance pieces must be correct for consistency.- The simulations mirror the theory with clear toggles between correctly specified and misspecified nuisances.
+- `Reproducibility & Implementation` (negative): Readers will want concrete guidance: what models to fit for $\mu_0\left(x, y_1, a\right)$, how to construct pseudo-outcomes with augmentation, and how to tune them.Can the authors add an algorithm box for learning $\eta_...
+- `Efficiency & Scalability` (positive): The results can plug into modern ML pipelines through cross-fitting.1.
+- `Writing Clarity & Organization` (positive): The efficiency-loss decompositions versus the fully-observed benchmark are informative.- The cross-fitting scheme and high-level conditions for asymptotic normality align with current best practice and are stated cleanly...
+- `Interpretation of Results` (negative): Inference and coverage.The simulations emphasize bias and RMSE but not confidence interval coverage or interval length.
+- `Baselines & Fair Comparison` (negative): Positioning vs related work (novelty claims).The paper cites DiD with staggered adoption and some recent missing-data DiD work, but the empirical reader will ask: how do your estimators compare to (a) complete-case DiD (...
+
+判断：Qwen `9 / 12`，GPT main `12 / 12`，GPT mini `6 / 7`。main 覆盖非常完整；mini 漏 technical novelty/statistical/problem setup；Qwen Ethics/Fit 有误。
+
+## GPT 对照结论
+
+这 10 条样本里，Qwen 的优势仍然是 recall：它几乎把 review 里所有可能相关的批评点都捞出来了；但噪音主要来自高风险标签误触发，例如 `Fit to Venue / Scope`、`Ethics / Safety / Misuse`、`Societal / Broader Impacts`、`Technical Correctness` 和 `Reproducibility & Implementation`。
+
+GPT mini 明显更像一个高 precision extractor：它通常只保留最明确的 6-8 个 aspect，错得少，但漏掉不少细分问题。对于大规模低成本跑数，它是一个比 Qwen 干净得多的 baseline。
+
+GPT main 是当前最稳的选择：相比 mini，它多出来的 aspect 多数是有效补充，尤其擅长区分统计证据、实验协议、问题设定、数据适配、超参数敏感性和相关工作定位。缺点是成本约为 mini 的 18 倍，且 evidence span 偶尔偏长。
+
+实用建议：如果预算允许，最终主结果用 GPT main；如果要控制成本，可以先用 GPT mini 全量跑，再对长 review、mini 抽取 aspect 过少、或 mixed stance 明显的样本用 GPT main 复核。
+
+<!-- END GPT_MAIN_MINI_EXTENSION -->
